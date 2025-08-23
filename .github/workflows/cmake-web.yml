@@ -1,0 +1,33 @@
+name: CI Build Web
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: mymindstorm/setup-emsdk@v14
+
+      - name: Verify
+        run: emcc -v
+    
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Configure CMake
+        run: |
+         cd seerohr
+         mkdir build_web
+         cd build_web
+         emcmake cmake .. -DPLATFORM=Web -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXECUTABLE_SUFFIX=".html"
+         cd ..
+
+      - name: Build
+        run: cmake --build build_web

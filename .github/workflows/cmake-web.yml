@@ -9,10 +9,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - uses: mymindstorm/setup-emsdk@v14
-
       - name: Verify
         run: emcc -v
     
@@ -33,4 +31,29 @@ jobs:
          emcmake cmake -S seerohr -B ${{ steps.strings.outputs.build-output-dir }} -DPLATFORM=Web -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXECUTABLE_SUFFIX=".html"
 
       - name: Build
-        run: cmake --build ${{ steps.strings.outputs.build-output-dir }}
+        run: |
+          cmake --build ${{ steps.strings.outputs.build-output-dir }}
+          mkdir deploy
+          cp ${{ steps.strings.outputs.build-output-dir }}/seerohr.html deploy/seerohr.html
+          cp ${{ steps.strings.outputs.build-output-dir }}/seerohr.js deploy/seerohr.js
+          cp ${{ steps.strings.outputs.build-output-dir }}/seerohr.wasm deploy/seerohr.wasm
+
+      - name: Upload static files as artifact
+        id: deployment
+        uses: actions/upload-pages-artifact@v3 # or specific "vX.X.X" version tag for this action
+        with:
+          path: deploy/
+          
+  deploy:
+    permissions:
+      id-token: write
+      pages: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

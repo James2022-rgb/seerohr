@@ -1,0 +1,36 @@
+name: CI Build Web
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: mymindstorm/setup-emsdk@v14
+
+      - name: Verify
+        run: emcc -v
+    
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Set reusable strings
+        # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
+        id: strings
+        shell: bash
+        run: |
+          echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+
+      - name: Configure CMake
+        run: |
+         emcmake cmake -S seerohr -B ${{ steps.strings.outputs.build-output-dir }} -DPLATFORM=Web -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXECUTABLE_SUFFIX=".html"
+
+      - name: Build
+        run: cmake --build ${{ steps.strings.outputs.build-output-dir }}

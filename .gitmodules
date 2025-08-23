@@ -1,0 +1,12 @@
+[submodule "seerohr/thirdparty/raylib"]
+	path = seerohr/thirdparty/raylib
+	url = https://github.com/raysan5/raylib
+[submodule "seerohr/thirdparty/rlImGui"]
+	path = seerohr/thirdparty/rlImGui
+	url = https://github.com/raylib-extras/rlImGui
+[submodule "seerohr/thirdparty/imgui"]
+	path = seerohr/thirdparty/imgui
+	url = https://github.com/ocornut/imgui
+[submodule "seerohr/thirdparty/raylib-cpp"]
+	path = seerohr/thirdparty/raylib-cpp
+	url = https://github.com/RobLoach/raylib-cpp

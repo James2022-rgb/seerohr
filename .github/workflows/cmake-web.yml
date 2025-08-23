@@ -23,11 +23,7 @@ jobs:
 
       - name: Configure CMake
         run: |
-         cd seerohr
-         mkdir build_web
-         cd build_web
-         emcmake cmake .. -DPLATFORM=Web -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXECUTABLE_SUFFIX=".html"
-         cd ..
+         emcmake cmake -S seerohr -B ${{ steps.strings.outputs.build-output-dir }} -DPLATFORM=Web -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXECUTABLE_SUFFIX=".html"
 
       - name: Build
-        run: cmake --build build_web
+        run: cmake --build ${{ steps.strings.outputs.build-output-dir }}

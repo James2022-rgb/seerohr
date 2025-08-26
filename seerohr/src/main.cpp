@@ -71,7 +71,7 @@ int main() {
 
 struct Ship final {
   raylib::Vector2 position;
-  float course_deg = 0.0f; // North is 0 degrees, clockwise.
+  Angle course = Angle::FromDeg(0.0f); // North is 0 degrees, clockwise.
   float speed_kn = 0.0f;   // Speed in knots (nautical miles per hour).
 };
 
@@ -97,8 +97,8 @@ public:
 
     {
       ownship_.position = raylib::Vector2 { kPositionX, kPositionY };
-      ownship_.course_deg = 0.0f; // North
-      ownship_.speed_kn = 0.0f;   // Stationary
+      ownship_.course = Angle::FromDeg(0.0f); // North
+      ownship_.speed_kn = 0.0f;               // Stationary
     }
   }
 
@@ -132,7 +132,7 @@ public:
       }
     }
 
-    tdc_.Update(ownship_.course_deg * DEG2RAD);
+    tdc_.Update(ownship_.course);
   }
 
   void Draw() {
@@ -154,7 +154,7 @@ public:
         constexpr float kOwnshipBeam = 6.21f;
         constexpr float kOwnshipLength = 72.39f;
         rlTranslatef(ownship_.position.x, ownship_.position.y, 0.0f);
-        rlRotatef(ownship_.course_deg, 0.0f, 0.0f, 1.0f);
+        rlRotatef(ownship_.course.ToDeg(), 0.0f, 0.0f, 1.0f);
         rlTranslatef(-ownship_.position.x, -ownship_.position.y, 0.0f);
         DrawEllipseV(ownship_.position, kOwnshipBeam, kOwnshipLength, LIGHTGRAY);
       rlPopMatrix();
@@ -165,7 +165,7 @@ public:
     tdc_.DrawVisualization(
       camera_,
       ownship_.position,
-      ownship_.course_deg * DEG2RAD
+      ownship_.course
     );
 
     {
@@ -207,11 +207,11 @@ public:
 
       {
         ImGui::Begin("U-Boat", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
-        ImGui::SliderFloat("Course (deg)", &ownship_.course_deg, 0.0f, 359.99f, "%.1f");
+        ownship_.course.ImGuiSliderDeg("Course (deg)", 0.0f, 359.99f, "%.1f");
         ImGui::End();
       }
 
-      tdc_.DoPanelImGui(ownship_.course_deg);
+      tdc_.DoPanelImGui(ownship_.course);
 
       rlImGuiEnd();
     }

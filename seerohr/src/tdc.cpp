@@ -4,6 +4,8 @@
 // c++ headers ------------------------------------------
 #include <cmath>
 
+#include <numbers>
+
 // external headers -------------------------------------
 #include "imgui.h"
 
@@ -12,6 +14,41 @@
 // https://www.reddit.com/r/uboatgame/comments/1f005cj/trigonometry_and_geometry_explanations_of_popular/
 // https://www.reddit.com/r/uboatgame/comments/1hja5a7/the_ultimate_lookup_table_compendium/
 // https://patents.google.com/patent/DE935417C/de
+
+
+Angle Angle::FromDeg(float deg) {
+  return Angle(deg * DEG2RAD);
+}
+Angle Angle::RightAngle() {
+  return Angle(std::numbers::pi_v<float> *0.5f);
+}
+Angle Angle::Pi() {
+  return Angle(std::numbers::pi_v<float>);
+}
+
+Angle Angle::WrapAround() const {
+  constexpr float kTwoPi = 2.0f * std::numbers::pi_v<float>;
+  float r = std::fmod(rad_, kTwoPi);
+  if (r < 0.0f) r += kTwoPi;
+  return Angle(r);
+}
+
+float Angle::ToDeg() const {
+  return rad_ * RAD2DEG;
+}
+
+float Angle::Sin() const { return std::sin(rad_); }
+float Angle::Cos() const { return std::cos(rad_); }
+float Angle::Tan() const { return std::tan(rad_); }
+
+bool Angle::ImGuiSliderDeg(char const* label, float min_deg, float max_deg, char const* format) {
+  float deg = this->ToDeg();
+  if (ImGui::SliderFloat(label, &deg, min_deg, max_deg, format)) {
+    rad_ = deg * DEG2RAD;
+    return true;
+  }
+  return false;
+}
 
 namespace {
 
@@ -45,64 +82,69 @@ void DrawLineStippled(
 
 namespace {
 
-float ComputeAbsoluteTargetBearingRad(
-  float ownship_course_rad,
-  float relative_target_bearing_rad
+Angle ComputeAbsoluteTargetBearing(
+  Angle ownship_course,
+  Angle relative_target_bearing
 ) {
-  return ownship_course_rad + relative_target_bearing_rad;
+  return ownship_course + relative_target_bearing;
 }
 
 raylib::Vector2 ComputeTargetPosition(
   raylib::Vector2 const& ownship_position,
-  float ownship_course_rad,
-  float relative_target_bearing_rad,
+  Angle ownship_course,
+  Angle relative_target_bearing,
   float target_range_m
 ) {
-  float const absolute_target_bearing_rad = ComputeAbsoluteTargetBearingRad(
-    ownship_course_rad,
-    relative_target_bearing_rad
+  Angle const absolute_target_bearing = ComputeAbsoluteTargetBearing(
+    ownship_course,
+    relative_target_bearing
   );
 
-  return {
-    ownship_position.x + target_range_m * +std::cos(-absolute_target_bearing_rad + PI * 0.5f),
-    ownship_position.y + target_range_m * -std::sin(-absolute_target_bearing_rad + PI * 0.5f)
+  
+
+  return { 
+    ownship_position.x + target_range_m * +(-absolute_target_bearing + Angle::RightAngle()).Cos(),
+    ownship_position.y + target_range_m * -(-absolute_target_bearing + Angle::RightAngle()).Sin()
   };
 }
 
 } // namespace
 
-void Tdc::Update(float ownship_course_rad) {
-  float const relative_target_bearing_rad = target_bearing_deg_ * DEG2RAD;
-  float const absolute_target_bearing_rad = ComputeAbsoluteTargetBearingRad(ownship_course_rad, relative_target_bearing_rad);
+void Tdc::Update(Angle ownship_course) {
+  Angle const absolute_target_bearing = ComputeAbsoluteTargetBearing(
+    ownship_course,
+    target_bearing_
+  );
 
-  float const target_course_rad = absolute_target_bearing_rad + PI - angle_on_bow_deg_ * DEG2RAD;
-  target_course_deg_ = target_course_rad * RAD2DEG;
-  target_course_deg_ = std::fmod(target_course_deg_ + 360.0f, 360.0f);
+  target_course_ = absolute_target_bearing + Angle::Pi() - angle_on_bow_;
+  target_course_ = target_course_.WrapAround();
 
-  lead_angle_deg_ = std::asin(target_speed_kn_ / torpedo_speed_kn_ * std::sin(angle_on_bow_deg_ * DEG2RAD)) * RAD2DEG;
+  lead_angle_ = Angle(std::asin(target_speed_kn_ / torpedo_speed_kn_ * std::sin(angle_on_bow_.AsRad())));
 
-  float const intercept_angle_rad = PI - angle_on_bow_deg_ * DEG2RAD - lead_angle_deg_ * DEG2RAD;
-  float const torpedo_run_distance_m = target_range_m_ / std::sin(intercept_angle_rad) * std::sin(angle_on_bow_deg_ * DEG2RAD);
+  Angle const intercept_angle = Angle::Pi() - angle_on_bow_ - lead_angle_;
+  float const torpedo_run_distance_m = target_range_m_ / intercept_angle.Sin() * angle_on_bow_.Sin();
 
   torpedo_time_to_target_s_ = torpedo_run_distance_m / (torpedo_speed_kn_ * 1852.0f / 3600.0f);
 
-  float const torpedo_course_deg = absolute_target_bearing_rad * RAD2DEG + lead_angle_deg_;
+  Angle const torpedo_course = absolute_target_bearing + lead_angle_;
 
-  torpedo_gyro_angle_deg_ = (torpedo_course_deg - ownship_course_rad * RAD2DEG);
+  torpedo_gyro_angle_ = torpedo_course - ownship_course;
 }
 
 void Tdc::DrawVisualization(
   raylib::Camera2D const& camera,
   raylib::Vector2 const& ownship_position,
-  float ownship_course_rad
+  Angle ownship_course
 ) const {
-  float const relative_target_bearing_rad = target_bearing_deg_ * DEG2RAD;
-  float const absolute_target_bearing_rad = ComputeAbsoluteTargetBearingRad(ownship_course_rad, relative_target_bearing_rad);
+  Angle const absolute_target_bearing = ComputeAbsoluteTargetBearing(
+    ownship_course,
+    target_bearing_
+  );
 
   raylib::Vector2 const target_position = ComputeTargetPosition(
     ownship_position,
-    ownship_course_rad,
-    target_bearing_deg_ * DEG2RAD,
+    ownship_course,
+    target_bearing_,
     target_range_m_
   );
 
@@ -111,8 +153,8 @@ void Tdc::DrawVisualization(
   float const torpedo_run_distance_m = torpedo_speed_kn_ * 1852.0f / 3600.0f * torpedo_time_to_target_s_;
 
   raylib::Vector2 const impact_position = ownship_position + raylib::Vector2(
-    torpedo_run_distance_m * std::cos(absolute_target_bearing_rad + lead_angle_deg_ * DEG2RAD - PI * 0.5f),
-    torpedo_run_distance_m * std::sin(absolute_target_bearing_rad + lead_angle_deg_ * DEG2RAD - PI * 0.5f)
+    torpedo_run_distance_m * (absolute_target_bearing + lead_angle_ - Angle::RightAngle()).Cos(),
+    torpedo_run_distance_m * (absolute_target_bearing + lead_angle_ - Angle::RightAngle()).Sin()
   );
 
   // Draw a target ghost.
@@ -122,7 +164,7 @@ void Tdc::DrawVisualization(
 
     rlPushMatrix();
       rlTranslatef(target_position.x, target_position.y, 0.0f);
-      rlRotatef(target_course_deg_, 0.0f, 0.0f, 1.0f);
+      rlRotatef(target_course_.ToDeg(), 0.0f, 0.0f, 1.0f);
       rlTranslatef(-target_position.x, -target_position.y, 0.0f);
       DrawEllipseV(
         target_position,
@@ -133,7 +175,7 @@ void Tdc::DrawVisualization(
 
     rlPushMatrix();
       rlTranslatef(impact_position.x, impact_position.y, 0.0f);
-      rlRotatef(target_course_deg_, 0.0f, 0.0f, 1.0f);
+      rlRotatef(target_course_.ToDeg(), 0.0f, 0.0f, 1.0f);
       rlTranslatef(-impact_position.x, -impact_position.y, 0.0f);
       DrawEllipseV(
         impact_position,
@@ -170,8 +212,8 @@ void Tdc::DrawVisualization(
   DrawCircleSector(
     target_position,
     150.0f,
-    target_course_deg_ - 90.0f,
-    target_course_deg_ + angle_on_bow_deg_ - 90.0f,
+    target_course_.ToDeg() - 90.0f,
+    target_course_.ToDeg() + angle_on_bow_.ToDeg() - 90.0f,
     32,
     Fade(BLUE, 0.25f)
   );
@@ -180,8 +222,8 @@ void Tdc::DrawVisualization(
   DrawLineStippled(
     ownship_position,
     ownship_position + raylib::Vector2(
-      10000.0f * std::cos(ownship_course_rad - PI * 0.5f),
-      10000.0f * std::sin(ownship_course_rad - PI * 0.5f)
+      10000.0f * (ownship_course - Angle::RightAngle()).Cos(),
+      10000.0f * (ownship_course - Angle::RightAngle()).Sin()
     ),
     2.5f,
     DARKGRAY
@@ -189,12 +231,11 @@ void Tdc::DrawVisualization(
 
   // Draw torpedo gyro angle.
   {
-    float const torpedo_gyro_angle_rad = torpedo_gyro_angle_deg_ * DEG2RAD;
     DrawCircleSector(
       ownship_position,
       200.0f,
-      ownship_course_rad * RAD2DEG - 90.0f,
-      ownship_course_rad* RAD2DEG + torpedo_gyro_angle_deg_ - 90.0f,
+      ownship_course.ToDeg() - 90.0f,
+      ownship_course.ToDeg() + torpedo_gyro_angle_.ToDeg() - 90.0f,
       32,
       Fade(ORANGE, 0.25f)
     );
@@ -204,8 +245,8 @@ void Tdc::DrawVisualization(
   DrawCircleSector(
     ownship_position,
     150.0f,
-    absolute_target_bearing_rad * RAD2DEG - 90.0f,
-    absolute_target_bearing_rad * RAD2DEG + lead_angle_deg_ - 90.0f,
+    absolute_target_bearing.ToDeg() - 90.0f,
+    absolute_target_bearing.ToDeg() + lead_angle_.ToDeg() - 90.0f,
     32,
     Fade(BLUE, 0.25f)
   );
@@ -230,8 +271,8 @@ void Tdc::DrawVisualization(
   DrawLineEx(
     target_position,
     target_position + raylib::Vector2(
-      10000.0f * std::cos((target_course_deg_ - 90.0f) * DEG2RAD),
-      10000.0f * std::sin((target_course_deg_ - 90.0f) * DEG2RAD)
+      10000.0f * (target_course_ - Angle::RightAngle()).Cos(),
+      10000.0f * (target_course_ - Angle::RightAngle()).Sin()
     ),
     2.5f,
     DARKGRAY
@@ -245,7 +286,7 @@ void Tdc::DrawVisualization(
 
   raylib::DrawTextEx(
     GetFontDefault(),
-    TextFormat("Angle on Bow: %s%0.1f", angle_on_bow_deg_ > 0.0f ? "+" : "", angle_on_bow_deg_),
+    TextFormat("Angle on Bow: %s%0.1f", angle_on_bow_.AsRad() > 0.0f ? "+" : "", angle_on_bow_.ToDeg()),
     target_position + raylib::Vector2(25.0f, 0.0f),
     50.0f,
     2.0f,
@@ -255,8 +296,8 @@ void Tdc::DrawVisualization(
     GetFontDefault(),
     TextFormat(
       "Lead Angle: %0.1f\nTorpedo Gyro Angle: %s%0.1f",
-      lead_angle_deg_,
-      torpedo_gyro_angle_deg_ > 0.0f ? "+" : "", torpedo_gyro_angle_deg_
+      lead_angle_.ToDeg(),
+      torpedo_gyro_angle_.AsRad() > 0.0f ? "+" : "", torpedo_gyro_angle_.ToDeg()
     ),
     ownship_position + raylib::Vector2(25.0f, 0.0f),
     50.0f,
@@ -268,25 +309,25 @@ void Tdc::DrawVisualization(
 }
 
 void Tdc::DoPanelImGui(
-  float ownship_course_deg
+  Angle ownship_course
 ) {
   ImGui::Begin("Torpedovorhaltrechner", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
 
   ImGui::Text("Input:");
-  ImGui::Text("Own Course: %.1f", ownship_course_deg);
+  ImGui::Text("Own Course: %.1f", ownship_course.ToDeg());
   ImGui::SliderFloat("Torpedo Speed (kn)", &torpedo_speed_kn_, 1.0f, 60.0f, "%.0f");
-  ImGui::SliderFloat("Bearing (deg)", &target_bearing_deg_, -179.0f, 179.0f, "%.1f");
-  ImGui::SliderFloat("Range (m)", &target_range_m_, 300.0f, 4000.0f, "%.0f");
-  ImGui::SliderFloat("Speed (kn)", &target_speed_kn_, 0.0f, 40.0f, "%.0f");
-  ImGui::SliderFloat("Angle on Bow (deg)", &angle_on_bow_deg_, -179.9f, 179.9f, "%.1f");
+  target_bearing_.ImGuiSliderDeg("Target Bearing (deg)", -179.0f, 179.0f, "%.1f");
+  ImGui::SliderFloat("Target Range (m)", &target_range_m_, 300.0f, 4000.0f, "%.0f");
+  ImGui::SliderFloat("Target Speed (kn)", &target_speed_kn_, 0.0f, 40.0f, "%.0f");
+  angle_on_bow_.ImGuiSliderDeg("Angle on Bow (deg)", -179.9f, 179.9f, "%.1f");
 
   ImGui::Separator();
 
   ImGui::Text("Output:");
-  ImGui::Text("Target Course: %.1f", target_course_deg_);
-  ImGui::Text("Lead Angle: %.1f", lead_angle_deg_);
+  ImGui::Text("Target Course: %.1f", target_course_.ToDeg());
+  ImGui::Text("Lead Angle: %.1f", lead_angle_.ToDeg());
   ImGui::Text("Time to Impact: %.1f s", torpedo_time_to_target_s_);
-  ImGui::Text("Torpedo Gyro Angle: %.1f", torpedo_gyro_angle_deg_);
+  ImGui::Text("Torpedo Gyro Angle: %.1f", torpedo_gyro_angle_.ToDeg());
 
   ImGui::End();
 }

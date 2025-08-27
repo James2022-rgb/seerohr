@@ -1,6 +1,7 @@
 #pragma once
 
 // c++ headers ------------------------------------------
+#include <optional>
 
 // external headers -------------------------------------
 #include "raylib-cpp.hpp"
@@ -53,6 +54,13 @@ private:
   float rad_ = 0.0f;
 };
 
+struct TorpedoTriangleSolution final {
+  Angle target_course = Angle::FromDeg(0.0f);
+  Angle lead_angle = Angle::FromDeg(0.0f);
+  float torpedo_time_to_target_s = 0.0f;
+  Angle torpedo_gyro_angle = Angle::FromDeg(0.0f);
+};
+
 class Tdc final {
 public:
   void Update(Angle ownship_course);
@@ -76,8 +84,5 @@ private:
   Angle angle_on_bow_ = Angle::FromDeg(90.0f);
 
   // TDC outputs.
-  Angle target_course_ = Angle::FromDeg(0.0f);
-  Angle lead_angle_ = Angle::FromDeg(0.0f);
-  float torpedo_time_to_target_s_ = 0.0f;
-  Angle torpedo_gyro_angle_ = Angle::FromDeg(0.0f);
+  std::optional<TorpedoTriangleSolution> solution_;
 };

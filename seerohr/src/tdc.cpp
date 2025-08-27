@@ -108,27 +108,62 @@ raylib::Vector2 ComputeTargetPosition(
   };
 }
 
+struct TorpedoTriangle final {
+  float torpedo_speed_kn = 0.0f;
+  Angle target_bearing = Angle::FromDeg(0.0f);
+  float target_range_m = 0.0f;
+  float target_speed_kn = 0.0f;
+
+  Angle angle_on_bow = Angle::FromDeg(0.0f);
+
+  std::optional<TorpedoTriangleSolution> Solve(Angle ownship_course) const {
+    assert(this->torpedo_speed_kn > 0.0f);
+    assert(-std::numbers::pi_v<float> <= this->angle_on_bow.AsRad() && this->angle_on_bow.AsRad() <= std::numbers::pi_v<float>);
+
+    if (this->angle_on_bow.AsRad() == 0.0f) {
+      return std::nullopt;
+    }
+
+    Angle const absolute_target_bearing = ComputeAbsoluteTargetBearing(
+      ownship_course,
+      this->target_bearing
+    );
+
+    Angle target_course = absolute_target_bearing + Angle::Pi() - this->angle_on_bow;
+    target_course = target_course.WrapAround();
+
+    Angle const lead_angle = Angle(std::asin(this->target_speed_kn / this->torpedo_speed_kn * this->angle_on_bow.Sin()));
+
+    Angle const intercept_angle = Angle::Pi() - this->angle_on_bow - lead_angle;
+    float const torpedo_run_distance_m = this->target_range_m / intercept_angle.Sin() * this->angle_on_bow.Sin();
+
+    Angle const torpedo_course = absolute_target_bearing + lead_angle;
+
+    Angle const torpedo_gyro_angle = torpedo_course - ownship_course;
+
+    float const torpedo_speed_mps = this->torpedo_speed_kn * 1852.0f / 3600.0f;
+
+    return TorpedoTriangleSolution {
+      .target_course = target_course,
+      .lead_angle = lead_angle,
+      .torpedo_time_to_target_s = torpedo_run_distance_m / torpedo_speed_mps,
+      .torpedo_gyro_angle = torpedo_gyro_angle
+    };
+  }
+};
+
 } // namespace
 
 void Tdc::Update(Angle ownship_course) {
-  Angle const absolute_target_bearing = ComputeAbsoluteTargetBearing(
-    ownship_course,
-    target_bearing_
-  );
+  TorpedoTriangle triangle {
+    .torpedo_speed_kn = torpedo_speed_kn_,
+    .target_bearing = target_bearing_,
+    .target_range_m = target_range_m_,
+    .target_speed_kn = target_speed_kn_,
+    .angle_on_bow = angle_on_bow_
+  };
 
-  target_course_ = absolute_target_bearing + Angle::Pi() - angle_on_bow_;
-  target_course_ = target_course_.WrapAround();
-
-  lead_angle_ = Angle(std::asin(target_speed_kn_ / torpedo_speed_kn_ * std::sin(angle_on_bow_.AsRad())));
-
-  Angle const intercept_angle = Angle::Pi() - angle_on_bow_ - lead_angle_;
-  float const torpedo_run_distance_m = target_range_m_ / intercept_angle.Sin() * angle_on_bow_.Sin();
-
-  torpedo_time_to_target_s_ = torpedo_run_distance_m / (torpedo_speed_kn_ * 1852.0f / 3600.0f);
-
-  Angle const torpedo_course = absolute_target_bearing + lead_angle_;
-
-  torpedo_gyro_angle_ = torpedo_course - ownship_course;
+  solution_ = triangle.Solve(ownship_course);
 }
 
 void Tdc::DrawVisualization(
@@ -148,13 +183,20 @@ void Tdc::DrawVisualization(
     target_range_m_
   );
 
+  if (!solution_.has_value()) {
+    // No solution, nothing to draw.
+    return;
+  }
+
+  TorpedoTriangleSolution const& solution = solution_.value();
+
   BeginMode2D(camera);
 
-  float const torpedo_run_distance_m = torpedo_speed_kn_ * 1852.0f / 3600.0f * torpedo_time_to_target_s_;
+  float const torpedo_run_distance_m = torpedo_speed_kn_ * 1852.0f / 3600.0f * solution.torpedo_time_to_target_s;
 
   raylib::Vector2 const impact_position = ownship_position + raylib::Vector2(
-    torpedo_run_distance_m * (absolute_target_bearing + lead_angle_ - Angle::RightAngle()).Cos(),
-    torpedo_run_distance_m * (absolute_target_bearing + lead_angle_ - Angle::RightAngle()).Sin()
+    torpedo_run_distance_m * (absolute_target_bearing + solution.lead_angle - Angle::RightAngle()).Cos(),
+    torpedo_run_distance_m * (absolute_target_bearing + solution.lead_angle - Angle::RightAngle()).Sin()
   );
 
   // Draw a target ghost.
@@ -164,7 +206,7 @@ void Tdc::DrawVisualization(
 
     rlPushMatrix();
       rlTranslatef(target_position.x, target_position.y, 0.0f);
-      rlRotatef(target_course_.ToDeg(), 0.0f, 0.0f, 1.0f);
+      rlRotatef(solution.target_course.ToDeg(), 0.0f, 0.0f, 1.0f);
       rlTranslatef(-target_position.x, -target_position.y, 0.0f);
       DrawEllipseV(
         target_position,
@@ -175,7 +217,7 @@ void Tdc::DrawVisualization(
 
     rlPushMatrix();
       rlTranslatef(impact_position.x, impact_position.y, 0.0f);
-      rlRotatef(target_course_.ToDeg(), 0.0f, 0.0f, 1.0f);
+      rlRotatef(solution.target_course.ToDeg(), 0.0f, 0.0f, 1.0f);
       rlTranslatef(-impact_position.x, -impact_position.y, 0.0f);
       DrawEllipseV(
         impact_position,
@@ -186,34 +228,19 @@ void Tdc::DrawVisualization(
   }
 
   // Draw a line from ownship to target.
-  {
-    DrawLineEx(
-      ownship_position,
-      target_position,
-      5.0f,
-      DARKGRAY
-    );
-
-#if 0
-    float const r = target_range_m_ * 0.5f;
-
-    raylib::DrawTextEx(
-      GetFontDefault(),
-      TextFormat("Range: %0.1f m", target_range_m_),
-      ownship_position + (target_position - ownship_position).Normalize() * r + raylib::Vector2(25.0f, 0.0f),
-      50.0f,
-      2.0f,
-      DARKGRAY
-    );
-#endif
-  }
+  DrawLineEx(
+    ownship_position,
+    target_position,
+    5.0f,
+    DARKGRAY
+  );
 
   // Draw angle on bow.
   DrawCircleSector(
     target_position,
     150.0f,
-    target_course_.ToDeg() - 90.0f,
-    target_course_.ToDeg() + angle_on_bow_.ToDeg() - 90.0f,
+    solution.target_course.ToDeg() - 90.0f,
+    solution.target_course.ToDeg() + angle_on_bow_.ToDeg() - 90.0f,
     32,
     Fade(BLUE, 0.25f)
   );
@@ -235,7 +262,7 @@ void Tdc::DrawVisualization(
       ownship_position,
       200.0f,
       ownship_course.ToDeg() - 90.0f,
-      ownship_course.ToDeg() + torpedo_gyro_angle_.ToDeg() - 90.0f,
+      ownship_course.ToDeg() + solution.torpedo_gyro_angle.ToDeg() - 90.0f,
       32,
       Fade(ORANGE, 0.25f)
     );
@@ -246,7 +273,7 @@ void Tdc::DrawVisualization(
     ownship_position,
     150.0f,
     absolute_target_bearing.ToDeg() - 90.0f,
-    absolute_target_bearing.ToDeg() + lead_angle_.ToDeg() - 90.0f,
+    absolute_target_bearing.ToDeg() + solution.lead_angle.ToDeg() - 90.0f,
     32,
     Fade(BLUE, 0.25f)
   );
@@ -271,8 +298,8 @@ void Tdc::DrawVisualization(
   DrawLineEx(
     target_position,
     target_position + raylib::Vector2(
-      10000.0f * (target_course_ - Angle::RightAngle()).Cos(),
-      10000.0f * (target_course_ - Angle::RightAngle()).Sin()
+      10000.0f * (solution.target_course - Angle::RightAngle()).Cos(),
+      10000.0f * (solution.target_course - Angle::RightAngle()).Sin()
     ),
     2.5f,
     DARKGRAY
@@ -296,8 +323,8 @@ void Tdc::DrawVisualization(
     GetFontDefault(),
     TextFormat(
       "Lead Angle: %0.1f\nTorpedo Gyro Angle: %s%0.1f",
-      lead_angle_.ToDeg(),
-      torpedo_gyro_angle_.AsRad() > 0.0f ? "+" : "", torpedo_gyro_angle_.ToDeg()
+      solution.lead_angle.ToDeg(),
+      solution.torpedo_gyro_angle.AsRad() > 0.0f ? "+" : "", solution.torpedo_gyro_angle.ToDeg()
     ),
     ownship_position + raylib::Vector2(25.0f, 0.0f),
     50.0f,
@@ -324,10 +351,17 @@ void Tdc::DoPanelImGui(
   ImGui::Separator();
 
   ImGui::Text("Output:");
-  ImGui::Text("Target Course: %.1f", target_course_.ToDeg());
-  ImGui::Text("Lead Angle: %.1f", lead_angle_.ToDeg());
-  ImGui::Text("Time to Impact: %.1f s", torpedo_time_to_target_s_);
-  ImGui::Text("Torpedo Gyro Angle: %.1f", torpedo_gyro_angle_.ToDeg());
+  if (!solution_.has_value()) {
+    ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "No solution");
+  }
+  else {
+    TorpedoTriangleSolution const& solution = solution_.value();
+
+    ImGui::Text("Target Course: %.1f", solution.target_course.ToDeg());
+    ImGui::Text("Lead Angle: %.1f", solution.lead_angle.ToDeg());
+    ImGui::Text("Time to Impact: %.1f s", solution.torpedo_time_to_target_s);
+    ImGui::Text("Torpedo Gyro Angle: %.1f", solution.torpedo_gyro_angle.ToDeg());
+  }
 
   ImGui::End();
 }

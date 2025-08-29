@@ -8,7 +8,7 @@
 #endif
 
 #include "imgui.h"
-#include "rlImGui.h"
+#include "imgui_impl_raylib.h"
 
 // project headers --------------------------------------
 #if CONFIG_USE_RAYGUI
@@ -16,6 +16,9 @@
 # include "raygui_widgets.h"
 #endif
 
+#include "mbase/platform.h"
+
+#include "asset.h"
 #include "tdc.h"
 
 //----------------------------------------------------------------------------------
@@ -27,7 +30,7 @@ constexpr int kScreenHeight = 720;
 //----------------------------------------------------------------------------------
 // Module Functions Declaration
 //----------------------------------------------------------------------------------
-void InitializeApp();
+void InitializeApp(ImFont* im_font);
 void UpdateDrawFrame();
 
 //----------------------------------------------------------------------------------
@@ -40,12 +43,36 @@ int main() {
 
   SetTargetFPS(60);
 
-  rlImGuiSetup(true);
+  ImGui::CreateContext();
+  {
+    ImGuiIO& io = ImGui::GetIO();
+    io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors | ImGuiBackendFlags_RendererHasTextures;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+  }
 
-  InitializeApp();
+  ImGui::StyleColorsDark();
+
+  ImFont* im_font = nullptr;
+  {
+    std::optional<std::vector<std::byte>> opt_bytes = IAssetManager::Get()->LoadAsset("mplus_fonts/Mplus1-Regular.ttf");
+    assert(opt_bytes.has_value());
+
+    void* bytes = ImGui::MemAlloc(opt_bytes->size());
+    memcpy(bytes, opt_bytes->data(), opt_bytes->size());
+
+    ImGuiIO& io = ImGui::GetIO();
+    im_font = io.Fonts->AddFontFromMemoryTTF(
+      bytes, int(opt_bytes->size()), 0.0f,
+      nullptr,
+      io.Fonts->GetGlyphRangesJapanese()
+    );
+  }
+
+  InitializeApp(im_font);
 
 #if defined(PLATFORM_WEB)
-  emscripten_set_main_loop(UpdateDrawFrame, 0, 1);
+  emscripten_set_main_loop(UpdateDrawFrame, 0, true);
 #else
   
   //--------------------------------------------------------------------------------
@@ -58,7 +85,8 @@ int main() {
 
   // De-Initialization
   //--------------------------------------------------------------------------------
-  rlImGuiShutdown();
+  ImGui_ImplRaylib_Shutdown();
+  ImGui::DestroyContext();
 
   //--------------------------------------------------------------------------------
 
@@ -77,7 +105,7 @@ struct Ship final {
 
 class State final {
 public:
-  void InitializeApp() {
+  void InitializeApp(ImFont* im_font) {
     constexpr float kPositionX = 5000.0f;
     constexpr float kPositionY = 2500.0f;
 
@@ -100,16 +128,25 @@ public:
       ownship_.course = Angle::FromDeg(0.0f); // North
       ownship_.speed_kn = 0.0f;               // Stationary
     }
+
+    im_font_ = im_font;
   }
 
   void Tick() {
+    ImGui_ImplRaylib_ProcessEvents();
+
+    ImGui_ImplRaylib_NewFrame();
+    ImGui::NewFrame();
+
+    ImGuiIO& io = ImGui::GetIO();
+
     if (raylib::Mouse::IsButtonDown(MOUSE_BUTTON_RIGHT))
     {
       raylib::Vector2 const delta = raylib::Mouse::GetDelta() / camera_.GetZoom();
       camera_.SetTarget(raylib::Vector2(camera_.GetTarget()) - delta);
     }
 
-    {
+    if (!io.WantCaptureMouse) {
       float const wheel = raylib::Mouse::GetWheelMove();
       if (wheel != 0.0f)
       {
@@ -193,7 +230,7 @@ public:
     }
 
     {
-      rlImGuiBegin();
+      ImGui::PushFont(im_font_);
 
       ImGui::ShowDemoWindow();
 
@@ -213,13 +250,18 @@ public:
 
       tdc_.DoPanelImGui(ownship_.course);
 
-      rlImGuiEnd();
+      ImGui::PopFont();
     }
+
+    ImGui::Render();
+    ImGui_ImplRaylib_RenderDrawData(ImGui::GetDrawData());
 
     EndDrawing();
   }
 
 private:
+  ImFont* im_font_ = nullptr;
+
   raylib::Camera2D camera_;
 
   Ship ownship_;
@@ -228,11 +270,12 @@ private:
 };
 static State s_state;
 
-void InitializeApp() {
-  s_state.InitializeApp();
+void InitializeApp(ImFont* im_font) {
+  s_state.InitializeApp(im_font);
 }
 
 void UpdateDrawFrame(void) {
   s_state.Tick();
+
   s_state.Draw();
 }

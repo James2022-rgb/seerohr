@@ -11,6 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
 add_library(
   ${PROJECT_NAME}
+  include/mbase/access.h
   include/mbase/container.h
   include/mbase/memory.h
   include/mbase/platform.h

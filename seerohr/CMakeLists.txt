@@ -101,6 +101,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
 add_executable(
   ${PROJECT_NAME}
+  src/asset.cpp
+  src/asset.h
   src/main.cpp
   src/raygui_integration.cpp
   src/raygui_widgets.cpp
@@ -142,8 +144,7 @@ if(${PLATFORM} STREQUAL "Web")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -gsource-map=inline")
   
   set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".html") # Tell Emscripten to build a ${PROJECT_NAME}.html file.
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -s USE_GLFW=3 -s ASSERTIONS=1 -s WASM=1 -s ASYNCIFY -s GL_ENABLE_GET_PROC_ADDRESS=1 -s EXPORTED_RUNTIME_METHODS=requestFullscreen")
-  # set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -s USE_GLFW=3 -s ASSERTIONS=2 -s SAFE_HEAP=1 -s STACK_OVERFLOW_CHECK=2 -s WASM=1 -s GL_ENABLE_GET_PROC_ADDRESS=1")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -s FETCH -s USE_GLFW=3 -s ASSERTIONS=1 -s WASM=1 -s ASYNCIFY -s GL_ENABLE_GET_PROC_ADDRESS=1 -s EXPORTED_RUNTIME_METHODS=requestFullscreen")
 endif()
 
 # Checks if OSX and links appropriate frameworks (Only required on MacOS)

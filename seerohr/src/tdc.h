@@ -33,6 +33,7 @@ public:
   float Tan() const;
 
   bool ImGuiSliderDeg(char const* label, float min_deg, float max_deg, char const* format = "%.3f");
+  bool ImGuiSliderDegWithId(char const* str_id, float min_deg, float max_deg, char const* value_format, char const* label_format, ...);
 
   Angle operator+(Angle const& other) const { return Angle(rad_ + other.rad_); }
   Angle operator-(Angle const& other) const { return Angle(rad_ - other.rad_); }

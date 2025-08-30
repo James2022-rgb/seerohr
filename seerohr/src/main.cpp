@@ -1,4 +1,4 @@
-
+﻿
 // external headers -------------------------------------
 #include "raylib.h"
 #include "raylib-cpp.hpp"
@@ -19,7 +19,12 @@
 #include "mbase/platform.h"
 
 #include "asset.h"
+#include "text.h"
 #include "tdc.h"
+
+#if defined(_MSC_VER)
+# pragma execution_character_set("utf-8")
+#endif
 
 //----------------------------------------------------------------------------------
 // Global Variables Definition
@@ -235,16 +240,30 @@ public:
       ImGui::ShowDemoWindow();
 
       {
-        ImGui::Begin("Camera", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
-        ImGui::Text("Zoom: %.2f", camera_.GetZoom());
-        ImGui::Text("Target: (%.1f, %.1f)", camera_.GetTarget().x, camera_.GetTarget().y);
-        ImGui::Text("Offset: (%.1f, %.1f)", camera_.GetOffset().x, camera_.GetOffset().y);
+        ImGui::Begin("seerohr", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+
+        Language current_lang = GetCurrentLanguage();
+        if (ImGui::RadioButton("Deutsch", current_lang == Language::kGerman)) {
+          SetCurrentLanguage(Language::kGerman);
+        }
+        ImGui::SameLine();
+        if (ImGui::RadioButton("English", current_lang == Language::kEnglish)) {
+          SetCurrentLanguage(Language::kEnglish);
+        }
+        ImGui::SameLine();
+        if (ImGui::RadioButton("日本語", current_lang == Language::kJapanese)) {
+          SetCurrentLanguage(Language::kJapanese);
+        }
+
+        ImGui::Text("Camera Zoom: %.2f", camera_.GetZoom());
+        ImGui::Text("Camera Target: (%.1f, %.1f)", camera_.GetTarget().x, camera_.GetTarget().y);
+        ImGui::Text("Camera Offset: (%.1f, %.1f)", camera_.GetOffset().x, camera_.GetOffset().y);
         ImGui::End();
       }
 
       {
         ImGui::Begin("U-Boat", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
-        ownship_.course.ImGuiSliderDeg("Course (deg)", 0.0f, 359.99f, "%.1f");
+        ownship_.course.ImGuiSliderDegWithId("Course", 0.0f, 359.99f, "%.1f", "%s (deg)", GetText(TextId::kCourse));
         ImGui::End();
       }
 

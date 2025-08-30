@@ -9,6 +9,10 @@
 // external headers -------------------------------------
 #include "imgui.h"
 
+// project headers --------------------------------------
+#include "text.h"
+#include "widgets.h"
+
 // http://www.tvre.org/en/torpedo-calculator-t-vh-re-s3
 // http://www.tvre.org/en/gyro-angled-torpedoes
 // https://www.reddit.com/r/uboatgame/comments/1f005cj/trigonometry_and_geometry_explanations_of_popular/
@@ -48,6 +52,19 @@ bool Angle::ImGuiSliderDeg(char const* label, float min_deg, float max_deg, char
     return true;
   }
   return false;
+}
+
+bool Angle::ImGuiSliderDegWithId(char const* str_id, float min_deg, float max_deg, char const* value_format, char const* label_format, ...) {
+  va_list args;
+  va_start(args, label_format);
+
+  float deg = this->ToDeg();
+  bool changed = SliderFloatWithIdV(str_id, &deg, min_deg, max_deg, value_format, ImGuiSliderFlags_None, label_format, args);
+  if (changed) {
+    rad_ = deg * DEG2RAD;
+  }
+  va_end(args);
+  return changed;
 }
 
 namespace {
@@ -313,7 +330,7 @@ void Tdc::DrawVisualization(
 
   raylib::DrawTextEx(
     GetFontDefault(),
-    TextFormat("Angle on Bow: %s%0.1f", angle_on_bow_.AsRad() > 0.0f ? "+" : "", angle_on_bow_.ToDeg()),
+    TextFormat("%s: %s%0.1f", GetText(TextId::kAngleOnBow), angle_on_bow_.AsRad() > 0.0f ? "+" : "", angle_on_bow_.ToDeg()),
     target_position + raylib::Vector2(25.0f, 0.0f),
     50.0f,
     2.0f,
@@ -322,8 +339,9 @@ void Tdc::DrawVisualization(
   raylib::DrawTextEx(
     GetFontDefault(),
     TextFormat(
-      "Lead Angle: %0.1f\nTorpedo Gyro Angle: %s%0.1f",
-      solution.lead_angle.ToDeg(),
+      "%s: %0.1f\n%s: %s%0.1f",
+      GetText(TextId::kLeadAngle), solution.lead_angle.ToDeg(),
+      GetText(TextId::kTorpedoGyroAngle), solution.torpedo_gyro_angle.AsRad() > 0.0f ? "+" : "", solution.torpedo_gyro_angle.ToDeg(),
       solution.torpedo_gyro_angle.AsRad() > 0.0f ? "+" : "", solution.torpedo_gyro_angle.ToDeg()
     ),
     ownship_position + raylib::Vector2(25.0f, 0.0f),
@@ -340,27 +358,29 @@ void Tdc::DoPanelImGui(
 ) {
   ImGui::Begin("Torpedovorhaltrechner", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
 
-  ImGui::Text("Input:");
-  ImGui::Text("Own Course: %.1f", ownship_course.ToDeg());
-  ImGui::SliderFloat("Torpedo Speed (kn)", &torpedo_speed_kn_, 1.0f, 60.0f, "%.0f");
-  target_bearing_.ImGuiSliderDeg("Target Bearing (deg)", -179.0f, 179.0f, "%.1f");
-  ImGui::SliderFloat("Target Range (m)", &target_range_m_, 300.0f, 4000.0f, "%.0f");
-  ImGui::SliderFloat("Target Speed (kn)", &target_speed_kn_, 0.0f, 40.0f, "%.0f");
-  angle_on_bow_.ImGuiSliderDeg("Angle on Bow (deg)", -179.9f, 179.9f, "%.1f");
+
+
+  ImGui::Text("%s:", GetText(TextId::kInput));
+  ImGui::Text("%s: %.1f", GetText(TextId::kOwnCourse), ownship_course.ToDeg());
+  SliderFloatWithId("Torpedo Speed", &torpedo_speed_kn_, 1.0f, 60.0f, "%.0f", ImGuiSliderFlags_None, "%s (kn)", GetText(TextId::kTorpedoSpeed));
+  target_bearing_.ImGuiSliderDegWithId("TargetBearing", -179.0f, 179.0f, "%.1f", "%s (deg)", GetText(TextId::kTargetBearing));
+  SliderFloatWithId("TargetRange", &target_range_m_, 300.0f, 4000.0f, "%.0f", ImGuiSliderFlags_None, "%s (m)", GetText(TextId::kTargetRange));
+  SliderFloatWithId("TargetSpeed", &target_speed_kn_, 0.0f, 40.0f, "%.0f", ImGuiSliderFlags_None, "%s (kn)", GetText(TextId::kTargetSpeed));
+  angle_on_bow_.ImGuiSliderDegWithId("AngleOnBow", -179.9f, 179.9f, "%.1f", "%s (deg)", GetText(TextId::kAngleOnBow));
 
   ImGui::Separator();
 
-  ImGui::Text("Output:");
+  ImGui::Text("%s:", GetText(TextId::kOutput));
   if (!solution_.has_value()) {
-    ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "No solution");
+    ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", GetText(TextId::kNoSolution));
   }
   else {
     TorpedoTriangleSolution const& solution = solution_.value();
 
-    ImGui::Text("Target Course: %.1f", solution.target_course.ToDeg());
-    ImGui::Text("Lead Angle: %.1f", solution.lead_angle.ToDeg());
-    ImGui::Text("Time to Impact: %.1f s", solution.torpedo_time_to_target_s);
-    ImGui::Text("Torpedo Gyro Angle: %.1f", solution.torpedo_gyro_angle.ToDeg());
+    ImGui::Text("%s: %.1f", GetText(TextId::kTargetCourse), solution.target_course.ToDeg());
+    ImGui::Text("%s: %.1f", GetText(TextId::kLeadAngle), solution.lead_angle.ToDeg());
+    ImGui::Text("%s: %.1f", GetText(TextId::kTorpedoGyroAngle), solution.torpedo_gyro_angle.ToDeg());
+    ImGui::Text("%s: %.1f s", GetText(TextId::kTimeToImpact), solution.torpedo_time_to_target_s);
   }
 
   ImGui::End();

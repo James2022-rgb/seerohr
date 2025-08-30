@@ -109,6 +109,10 @@ add_executable(
   src/raygui_widgets.h
   src/tdc.cpp
   src/tdc.h
+  src/text.cpp
+  src/text.h
+  src/widgets.cpp
+  src/widgets.h
 )
 
 if(USE_RAYGUI)
@@ -141,7 +145,7 @@ endif()
 
 # Web Configurations
 if(${PLATFORM} STREQUAL "Web")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -gsource-map=inline")
+  # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -gsource-map=inline")
   
   set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".html") # Tell Emscripten to build a ${PROJECT_NAME}.html file.
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -s FETCH -s USE_GLFW=3 -s ASSERTIONS=1 -s WASM=1 -s ASYNCIFY -s GL_ENABLE_GET_PROC_ADDRESS=1 -s EXPORTED_RUNTIME_METHODS=requestFullscreen")

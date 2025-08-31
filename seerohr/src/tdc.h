@@ -24,6 +24,8 @@ public:
   Angle& operator=(Angle&&) = default;
 
   float AsRad() const { return rad_; }
+  Angle Abs() const;
+  float Sign() const;
 
   Angle WrapAround() const;
 
@@ -51,6 +53,8 @@ public:
   bool operator>(Angle const& other) const { return rad_ > other.rad_; }
   bool operator>=(Angle const& other) const { return rad_ >= other.rad_; }
 
+  friend Angle operator*(float scalar, Angle const& angle) { return Angle(angle.rad_ * scalar); }
+
 private:
   float rad_ = 0.0f;
 };
@@ -59,12 +63,16 @@ struct TorpedoTriangleSolution final {
   Angle target_course = Angle::FromDeg(0.0f);
   Angle lead_angle = Angle::FromDeg(0.0f);
   float torpedo_time_to_target_s = 0.0f;
-  Angle torpedo_gyro_angle = Angle::FromDeg(0.0f);
+  Angle torpedo_gyro_angle = Angle::FromDeg(0.0f); // Signed: Positive is starboard, negative is port.
+  raylib::Vector2 impact_position = { 0.0f, 0.0f };
 };
 
 class Tdc final {
 public:
-  void Update(Angle ownship_course);
+  void Update(
+    Angle ownship_course,
+    raylib::Vector2 const& ownship_position
+  );
 
   void DrawVisualization(
     raylib::Camera2D const& camera,

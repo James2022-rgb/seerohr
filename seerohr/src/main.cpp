@@ -176,7 +176,7 @@ public:
       }
     }
 
-    tdc_.Update(ownship_.course);
+    tdc_.Update(ownship_.course, ownship_.position);
   }
 
   void Draw() {

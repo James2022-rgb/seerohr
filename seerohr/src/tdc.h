@@ -59,6 +59,12 @@ private:
   float rad_ = 0.0f;
 };
 
+struct TorpedoTriangleIntermediate final {
+  Angle ownship_course = Angle(0.0f);
+  Angle absolute_target_bearing = Angle(0.0f);
+  Angle target_course = Angle(0.0f);
+};
+
 struct TorpedoTriangleSolution final {
   Angle target_course = Angle::FromDeg(0.0f);
   Angle lead_angle = Angle::FromDeg(0.0f);
@@ -93,5 +99,6 @@ private:
   Angle angle_on_bow_ = Angle::FromDeg(90.0f);
 
   // TDC outputs.
+  TorpedoTriangleIntermediate interm_;
   std::optional<TorpedoTriangleSolution> solution_;
 };

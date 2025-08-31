@@ -58,6 +58,8 @@ int main() {
 
   ImGui::StyleColorsDark();
 
+  SetCurrentLanguage(GetSystemLanguageOrEnglish());
+
   ImFont* im_font = nullptr;
   {
     std::optional<std::vector<std::byte>> opt_bytes = IAssetManager::Get()->LoadAsset("mplus_fonts/Mplus1-Regular.ttf");

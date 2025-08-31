@@ -23,6 +23,8 @@ enum class TextId {
   kNoSolution,
 };
 
+Language GetSystemLanguageOrEnglish();
+
 Language GetCurrentLanguage();
 void SetCurrentLanguage(Language lang);
 

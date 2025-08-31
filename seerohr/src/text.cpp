@@ -7,6 +7,21 @@
 #include <array>
 #include <unordered_map>
 
+// platform detection -----------------------------------
+#include "mbase/platform.h"
+
+// conditional c++ headers ------------------------------
+#if MBASE_PLATFORM_LINUX
+# include <cstdlib>
+#endif
+
+// conditional platform headers -------------------------
+#if MBASE_PLATFORM_WINDOWS
+# include <Windows.h>
+#elif MBASE_PLATFORM_WEB
+# include <emscripten/emscripten.h>
+#endif
+
 #if defined(_MSC_VER)
 # pragma execution_character_set("utf-8")
 #endif
@@ -37,6 +52,49 @@ std::unordered_map<TextId, std::array<const char*, kLanguageCount>> const kTextM
 Language current_language = Language::kGerman;
 
 } // namespace
+
+Language GetSystemLanguageOrEnglish() {
+  Language language = Language::kEnglish;
+
+#if MBASE_PLATFORM_WINDOWS
+  {
+    // On Windows, use the system locale.
+    wchar_t locale_name[LOCALE_NAME_MAX_LENGTH] = { 0 };
+    if (GetUserDefaultLocaleName(locale_name, LOCALE_NAME_MAX_LENGTH) > 0) {
+      if (wcsncmp(locale_name, L"de", 2) == 0) {
+        language = Language::kGerman;
+      }
+      else if (wcsncmp(locale_name, L"ja", 2) == 0) {
+        language = Language::kJapanese;
+      }
+      else {
+        language = Language::kEnglish;
+      }
+    }
+  }
+#elif MBASE_PLATFORM_LINUX || MBASE_PLATFORM_WEB
+  {
+# if MBASE_PLATFORM_LINUX
+    char* locale = std::getenv("LANGUAGE");
+# elif MBASE_PLATFORM_WEB
+    char* locale = emscripten_run_script_string("window.navigator.language");
+# endif
+    if (locale != nullptr) {
+      if (strncmp(locale, "de", 2) == 0) {
+        language = Language::kGerman;
+      }
+      else if (strncmp(locale, "ja", 2) == 0) {
+        language = Language::kJapanese;
+      }
+      else {
+        language = Language::kEnglish;
+      }
+    }
+  }
+#endif
+
+  return language;
+}
 
 Language GetCurrentLanguage() {
   return current_language;

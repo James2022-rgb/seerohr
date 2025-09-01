@@ -38,6 +38,10 @@ jobs:
           cp ${{ steps.strings.outputs.build-output-dir }}/seerohr.js deploy/seerohr.js
           cp ${{ steps.strings.outputs.build-output-dir }}/seerohr.wasm deploy/seerohr.wasm
 
+      - name: Copy assets
+        run: |
+          cp -a assets/. deploy/assets/
+
       - name: Upload static files as artifact
         id: deployment
         uses: actions/upload-pages-artifact@v3 # or specific "vX.X.X" version tag for this action

@@ -15,6 +15,10 @@
 # include <cstdlib>
 #endif
 
+#if MBASE_PLATFORM_LINUX || MBASE_PLATFORM_WEB
+# include <cstring>
+#endif
+
 // conditional platform headers -------------------------
 #if MBASE_PLATFORM_WINDOWS
 # include <Windows.h>

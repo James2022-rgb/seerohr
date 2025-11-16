@@ -8,7 +8,7 @@
 #include <unordered_map>
 
 // platform detection -----------------------------------
-#include "mbase/platform.h"
+#include "mbase/public/platform.h"
 
 // conditional c++ headers ------------------------------
 #if MBASE_PLATFORM_LINUX

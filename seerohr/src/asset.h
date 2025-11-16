@@ -7,7 +7,7 @@
 #include <vector>
 
 // project headers --------------------------------------
-#include "mbase/access.h"
+#include "mbase/public/access.h"
 
 class IAssetManager {
 public:

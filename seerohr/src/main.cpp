@@ -16,7 +16,7 @@
 # include "raygui_widgets.h"
 #endif
 
-#include "mbase/platform.h"
+#include "mbase/public/platform.h"
 
 #include "asset.h"
 #include "text.h"

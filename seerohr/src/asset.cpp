@@ -10,7 +10,7 @@
 #include <map>
 
 // project headers --------------------------------------
-#include "mbase/platform.h"
+#include "mbase/public/platform.h"
 
 // conditional c++ headers ------------------------------
 #if MBASE_PLATFORM_WINDOWS || MBASE_PLATFORM_LINUX

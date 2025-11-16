@@ -37,7 +37,7 @@ std::filesystem::path ResolveAssetPath(char const* asset_path) {
   return kRootPath / asset_path;
 #elif MBASE_PLATFORM_WEB
   // Assume that the "assets" directory is served at the same level as the HTML file, and `asset_path` is relative to it.
-  static std::filesystem::path const kRootPath = "assets";
+  static std::filesystem::path const kRootPath = "/assets"; // Root-relative path in the web server.
   return kRootPath / asset_path;
 #else
   // MBASE_LOG_ERROR("ResolveAssetPath: Not implemented for this platform.");

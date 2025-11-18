@@ -1,4 +1,4 @@
-name: CI Build Web
+name: CI Build/Deploy Web
 
 on:
   push:

@@ -2,6 +2,7 @@
 #include "tdc.h"
 
 // c++ headers ------------------------------------------
+#include <cstdint>
 #include <cmath>
 
 #include <algorithm>

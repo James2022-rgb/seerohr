@@ -19,7 +19,7 @@ enum class TextId {
   kTargetCourse,
   kLeadAngle,
   kTimeToImpact,
-  kTorpedoGyroAngle,
+  kPseudoTorpedoGyroAngle,
   kNoSolution,
 };
 

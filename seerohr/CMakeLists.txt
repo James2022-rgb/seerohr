@@ -41,6 +41,7 @@ if(USE_DEAR_IMGUI)
 
   add_library(dear_imgui STATIC ${DEAR_IMGUI_SOURCES})
   target_include_directories(dear_imgui PUBLIC ${DEAR_IMGUI_DIR})
+  set_target_properties(dear_imgui PROPERTIES FOLDER "external")
 endif()
 
 #
@@ -49,6 +50,7 @@ endif()
 
 set(RAYLIB_DIR "${THIRDPARTY_DIR}/raylib")
 add_subdirectory(${RAYLIB_DIR})
+set_target_properties(raylib PROPERTIES FOLDER "external")
 
 #
 # raylib-cpp
@@ -56,6 +58,7 @@ add_subdirectory(${RAYLIB_DIR})
 
 set(RAYLIB_CPP_DIR "${THIRDPARTY_DIR}/raylib-cpp")
 add_subdirectory(${RAYLIB_CPP_DIR})
+set_target_properties(raylib_cpp PROPERTIES FOLDER "external")
 
 #
 # raygui
@@ -78,6 +81,7 @@ if(USE_DEAR_IMGUI)
   )
   target_link_libraries(rlImGui dear_imgui raylib)
   target_include_directories(rlImGui PUBLIC ${RLIMGUI_DIR})
+  set_target_properties(rlImGui PROPERTIES FOLDER "external")
 endif()
 
 # --------------------------------------------------------------------------------

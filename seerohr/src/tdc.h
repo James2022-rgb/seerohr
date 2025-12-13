@@ -7,56 +7,23 @@
 #include "raylib-cpp.hpp"
 
 // project headers --------------------------------------
+#include "angle.h"
 
-class Angle final {
-public:
-  static Angle FromDeg(float deg);
-  static Angle RightAngle();
-  static Angle Pi();
+struct TorpedoSpec final {
+  /// Distance in meters from the aiming device to the torpedo tube.
+  float distance_to_tube = 27.0f;
+  /// Initial straight run in meters; distance the torpedo runs straight ahead before starting to turn.
+  float reach = 9.5f;
+  /// Turn radius of the torpedo in meters.
+  float turn_radius = 95.0f;
+  /// Speed of the torpedo in knots.
+  float speed_kn = 30.0f;
 
-  constexpr Angle() = default;
-  explicit Angle(float rad) : rad_(rad) {}
-  ~Angle() = default;
-
-  Angle(Angle const&) = default;
-  Angle& operator=(Angle const&) = default;
-  Angle(Angle&&) = default;
-  Angle& operator=(Angle&&) = default;
-
-  float AsRad() const { return rad_; }
-  Angle Abs() const;
-  float Sign() const;
-
-  Angle WrapAround() const;
-
-  float ToDeg() const;
-  float Sin() const;
-  float Cos() const;
-  float Tan() const;
-
-  bool ImGuiSliderDeg(char const* label, float min_deg, float max_deg, char const* format = "%.3f");
-  bool ImGuiSliderDegWithId(char const* str_id, float min_deg, float max_deg, char const* value_format, char const* label_format, ...);
-
-  Angle operator+(Angle const& other) const { return Angle(rad_ + other.rad_); }
-  Angle operator-(Angle const& other) const { return Angle(rad_ - other.rad_); }
-  Angle& operator+=(Angle const& other) { rad_ += other.rad_; return *this; }
-  Angle& operator-=(Angle const& other) { rad_ -= other.rad_; return *this; }
-  Angle operator-() const { return Angle(-rad_); }
-  Angle operator*(float scalar) const { return Angle(rad_ * scalar); }
-  Angle operator/(float scalar) const { return Angle(rad_ / scalar); }
-  Angle& operator*=(float scalar) { rad_ *= scalar; return *this; }
-  Angle& operator/=(float scalar) { rad_ /= scalar; return *this; }
-  bool operator==(Angle const& other) const { return rad_ == other.rad_; }
-  bool operator!=(Angle const& other) const { return rad_ != other.rad_; }
-  bool operator<(Angle const& other) const { return rad_ < other.rad_; }
-  bool operator<=(Angle const& other) const { return rad_ <= other.rad_; }
-  bool operator>(Angle const& other) const { return rad_ > other.rad_; }
-  bool operator>=(Angle const& other) const { return rad_ >= other.rad_; }
-
-  friend Angle operator*(float scalar, Angle const& angle) { return Angle(angle.rad_ * scalar); }
-
-private:
-  float rad_ = 0.0f;
+  /// Compute the offset to the equivalent point of fire, or ideeller Torpedoeintrittsort as it is called in German.
+  ///
+  /// * `delta`: Parallax correction angle, or Winkelparallaxverbesserung.
+  /// * `rho`: Final torpedo gyro angle, or Schusswinkel.
+  raylib::Vector2 ComputeEquivalentPointOfFireOffset(float delta, float rho) const;
 };
 
 struct TorpedoTriangleIntermediate final {
@@ -68,22 +35,31 @@ struct TorpedoTriangleIntermediate final {
 struct TorpedoTriangleSolution final {
   Angle target_course = Angle::FromDeg(0.0f);
   Angle lead_angle = Angle::FromDeg(0.0f);
+  Angle intercept_angle = Angle::FromDeg(0.0f);
   float torpedo_time_to_target_s = 0.0f;
-  Angle torpedo_gyro_angle = Angle::FromDeg(0.0f); // Signed: Positive is starboard, negative is port.
+  Angle pseudo_torpedo_gyro_angle = Angle::FromDeg(0.0f); // Signed: Positive is starboard, negative is port.
   raylib::Vector2 impact_position = { 0.0f, 0.0f };
+};
+
+struct EquivalentPointOfFireSolution final {
+  float delta = 0.0f; // Parallax correction angle, or Winkelparallaxverbesserung.
+  float rho = 0.0f;   // Final torpedo gyro angle, or Schusswinkel.
 };
 
 class Tdc final {
 public:
   void Update(
     Angle ownship_course,
-    raylib::Vector2 const& ownship_position
+    raylib::Vector2 const& aiming_device_position
   );
 
   void DrawVisualization(
     raylib::Camera2D const& camera,
     raylib::Vector2 const& ownship_position,
-    Angle ownship_course
+    raylib::Vector2 const& aiming_device_position,
+    Angle ownship_course,
+    float target_beam,
+    float target_length
   ) const;
 
   void DoPanelImGui(
@@ -91,14 +67,19 @@ public:
   );
 
 private:
+  //
   // TDC inputs.
-  float torpedo_speed_kn_ = 30.0f;
-  Angle target_bearing_ = Angle::FromDeg(-30.0f);
+  //
+
+  TorpedoSpec torpedo_spec_;
+  
+  Angle target_bearing_ = Angle::FromDeg(-80.0f);
   float target_range_m_ = 900.0f;
-  float target_speed_kn_ = 10.0f;
-  Angle angle_on_bow_ = Angle::FromDeg(90.0f);
+  float target_speed_kn_ = 20.0f;
+  Angle angle_on_bow_ = Angle::FromDeg(70.0f);
 
   // TDC outputs.
   TorpedoTriangleIntermediate interm_;
   std::optional<TorpedoTriangleSolution> solution_;
+  std::optional<EquivalentPointOfFireSolution> epf_solution_;
 };

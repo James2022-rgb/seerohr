@@ -105,9 +105,18 @@ int main() {
 //----------------------------------------------------------------------------------
 
 struct Ship final {
+  float distance_to_aiming_device = 45.39f;
+
   raylib::Vector2 position;
   Angle course = Angle::FromDeg(0.0f); // North is 0 degrees, clockwise.
   float speed_kn = 0.0f;   // Speed in knots (nautical miles per hour).
+
+  raylib::Vector2 GetAimingDevicePosition() const {
+    return raylib::Vector2 {
+      position.x + distance_to_aiming_device * (course - Angle::RightAngle()).Cos(),
+      position.y + distance_to_aiming_device * (course - Angle::RightAngle()).Sin()
+    };
+  }
 };
 
 class State final {
@@ -117,9 +126,9 @@ public:
     constexpr float kPositionY = 2500.0f;
 
     {
-      constexpr float kZoom = 0.45f;
+      constexpr float kZoom = 0.55f;
       constexpr float kCenterX = kPositionX;
-      constexpr float kCenterY = 1850.0f;
+      constexpr float kCenterY = 2114.0f;
 
       float x = kCenterX - float(GetScreenWidth())  / 2.0f / kZoom;
       float y = kCenterY - float(GetScreenHeight()) / 2.0f / kZoom;
@@ -132,8 +141,8 @@ public:
 
     {
       ownship_.position = raylib::Vector2 { kPositionX, kPositionY };
-      ownship_.course = Angle::FromDeg(0.0f); // North
-      ownship_.speed_kn = 0.0f;               // Stationary
+      ownship_.course = Angle::FromDeg(90.0f); // East
+      ownship_.speed_kn = 0.0f;                // Stationary
     }
 
     im_font_ = im_font;
@@ -176,7 +185,7 @@ public:
       }
     }
 
-    tdc_.Update(ownship_.course, ownship_.position);
+    tdc_.Update(ownship_.course, ownship_.GetAimingDevicePosition());
   }
 
   void Draw() {
@@ -206,10 +215,16 @@ public:
       EndMode2D();
     }
 
+    constexpr float kTargetBeam = 17.3f;
+    constexpr float kTargetLength = 134.0f;
+
     tdc_.DrawVisualization(
       camera_,
       ownship_.position,
-      ownship_.course
+      ownship_.GetAimingDevicePosition(),
+      ownship_.course,
+      kTargetBeam,
+      kTargetLength
     );
 
     {

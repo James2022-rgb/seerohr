@@ -101,6 +101,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
 add_executable(
   ${PROJECT_NAME}
+  src/angle.cpp
+  src/angle.h
   src/asset.cpp
   src/asset.h
   src/main.cpp

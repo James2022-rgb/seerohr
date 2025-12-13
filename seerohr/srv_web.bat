@@ -1,1 +1,1 @@
-simple-http-server build_web
+simple-http-server deploy_web

@@ -1,5 +1,4 @@
-﻿
-// external headers -------------------------------------
+﻿// external headers -------------------------------------
 #include "raylib.h"
 #include "raylib-cpp.hpp"
 
@@ -20,7 +19,8 @@
 
 #include "asset.h"
 #include "text.h"
-#include "tdc.h"
+#include "angle.h"
+#include "tdc2.h"
 
 #if defined(_MSC_VER)
 # pragma execution_character_set("utf-8")
@@ -128,7 +128,7 @@ public:
     {
       constexpr float kZoom = 0.55f;
       constexpr float kCenterX = kPositionX;
-      constexpr float kCenterY = 2114.0f;
+      constexpr float kCenterY = kPositionY;  // Use ship Y position
 
       float x = kCenterX - float(GetScreenWidth())  / 2.0f / kZoom;
       float y = kCenterY - float(GetScreenHeight()) / 2.0f / kZoom;
@@ -185,7 +185,9 @@ public:
       }
     }
 
+#if 1
     tdc_.Update(ownship_.course, ownship_.GetAimingDevicePosition());
+#endif
   }
 
   void Draw() {
@@ -218,6 +220,7 @@ public:
     constexpr float kTargetBeam = 17.3f;
     constexpr float kTargetLength = 134.0f;
 
+#if 1
     tdc_.DrawVisualization(
       camera_,
       ownship_.position,
@@ -226,6 +229,7 @@ public:
       kTargetBeam,
       kTargetLength
     );
+#endif
 
     {
       raylib::Vector2 const mouse_pos = raylib::Mouse::GetPosition();
@@ -280,11 +284,29 @@ public:
 
       {
         ImGui::Begin("U-Boat", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+
         ownship_.course.ImGuiSliderDegWithId("Course", 0.0f, 359.99f, "%.1f", "%s (deg)", GetText(TextId::kCourse));
+
+#if 1
+        // Position
+        {
+          float position_x = ownship_.position.x;
+          float position_y = ownship_.position.y;
+          if (ImGui::InputFloat("Position X (m)", &position_x, 10.0f, 100.0f, "%.1f")) {
+            ownship_.position.x = position_x;
+          }
+          if (ImGui::InputFloat("Position Y (m)", &position_y, 10.0f, 100.0f, "%.1f")) {
+            ownship_.position.y = position_y;
+          }
+        }
+#endif
+
         ImGui::End();
       }
 
+#if 1
       tdc_.DoPanelImGui(ownship_.course);
+#endif
 
       ImGui::PopFont();
     }
@@ -302,7 +324,7 @@ private:
 
   Ship ownship_;
 
-  Tdc tdc_;
+  tdc2::Tdc tdc_;
 };
 static State s_state;
 

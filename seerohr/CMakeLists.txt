@@ -117,6 +117,8 @@ add_executable(
   src/raylib_widgets.h
   src/tdc.cpp
   src/tdc.h
+  src/tdc2.cpp
+  src/tdc2.h
   src/text.cpp
   src/text.h
   src/widgets.cpp

@@ -767,6 +767,11 @@ void Tdc::DoPanelImGui(
   SliderFloatWithId("TargetSpeed", &target_speed_kn_, 0.0f, kMaxTargetSpeedKn, "%.0f", ImGuiSliderFlags_None, "%s (kn)", GetText(TextId::kTargetSpeed));
   angle_on_bow_.ImGuiSliderDegWithId("AngleOnBow", -180.0f, 180.0f, "%.1f", "%s (deg)", GetText(TextId::kAngleOnBow));
 
+  float aob_deg = angle_on_bow_.ToDeg();
+  if (AoBDialProcedural("AoBDial", GetText(TextId::kAngleOnBow), 100.0f, &aob_deg)) {
+    angle_on_bow_ = Angle::FromDeg(aob_deg);
+  }
+
   ImGui::Separator();
 
   ImGui::Text("%s:", GetText(TextId::kOutput));

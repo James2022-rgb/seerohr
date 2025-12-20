@@ -148,12 +148,12 @@ struct TorpedoTriangle final {
     Angle const pseudo_torpedo_gyro_angle = torpedo_course - interm.ownship_course;
 
     // `- Angle::RightAngle()` corrects for coordinate space difference.
-    raylib::Vector2 const impact_position = aiming_device_position + raylib::Vector2 (
+    raylib::Vector2 const impact_position = aiming_device_position + raylib::Vector2(
       torpedo_run_distance_m * (interm.absolute_target_bearing + (this->angle_on_bow.Sign() * lead_angle) - Angle::RightAngle()).Cos(),
       torpedo_run_distance_m * (interm.absolute_target_bearing + (this->angle_on_bow.Sign() * lead_angle) - Angle::RightAngle()).Sin()
     );
 
-    return TorpedoTriangleSolution {
+    return TorpedoTriangleSolution{
       .target_course = interm.target_course,
       .lead_angle = lead_angle,
       .intercept_angle = intercept_angle,
@@ -167,9 +167,91 @@ struct TorpedoTriangle final {
 } // namespace
 
 namespace {
-
-
 struct ParallaxCorrectionSolver final {
+  /// Solve for the parallax correction using geometric iteration.
+  ///
+  /// This method iteratively refines the parallax correction angle (delta) using geometric relationships.
+  /// It uses the initial guess (`rho0`) and the observed target position to compute the correction.
+  /// 
+  /// ## Parameters
+  /// - `rho0`: Initial guess for the torpedo gyro angle (Schusswinkel) in radians.
+  static bool SolveByGeometry(
+    TorpedoSpec const& torpedo_spec,
+    TorpedoTriangle const& triangle,
+    float rho0,
+    ParallaxCorrectionSolution& out_pc_solution
+  ) {
+    constexpr uint32_t kIters = 64;
+    constexpr float kTolerance = 1e-6f;
+    constexpr float kLambda = 0.6f;
+
+    // Target range, as observed from the aiming device.
+    float const los = triangle.target_range_m;
+
+    // Signed target bearing.
+    float const omega1 = triangle.target_bearing.AsRad();
+
+    // Unsigned angle on bow.
+    float const gamma1 = triangle.angle_on_bow.Abs().AsRad();
+
+    auto wrap_pi = [](float angle) -> float {
+      return std::remainder(angle, 2.0f * std::numbers::pi_v<float>); // (-pi, pi]
+    };
+
+    // Target position, as observed from the aiming device.
+    raylib::Vector2 const T { los * std::cos(omega1), los * std::sin(omega1) };
+
+    float rho = rho0; // Initialize with initial guess for rho.
+    float delta = 0.0f; // What we are solving for.
+
+    for (uint32_t i = 0; i < kIters; ++i) {
+      raylib::Vector2 const epf_offset = torpedo_spec.ComputeEquivalentPointOfFireOffset(rho);
+
+      raylib::Vector2 const e_to_t = T - epf_offset;
+
+      // Target bearing, as observed from this equivalent point of fire.
+      float const omega2 = std::atan2(e_to_t.y, e_to_t.x);
+
+      // Unsigned angle on bow, as observed from the equivalent point of fire.
+      float const gamma2 = wrap_pi(gamma1 - delta);
+
+      // Lead angle as seen from the equivalent point of fire.
+      float beta = 0.0f;
+      {
+        float sin_beta = (triangle.target_speed_kn / torpedo_spec.speed_kn) * std::sin(gamma2);
+
+        if (sin_beta < -1.0f || 1.0f < sin_beta) {
+          // No solution; target is too fast leaving no valid lead angle for given torpedo speed and target course.
+          return false;
+        }
+
+        beta = std::asin(sin_beta);
+      }
+
+      // Desired rho.
+      float const rho_target = wrap_pi(omega2 + beta);
+
+      // Relaxed update on the circle.
+      float const step = wrap_pi(rho_target - rho);
+      rho = wrap_pi(rho + kLambda * step);
+
+      if (std::abs(step) < kTolerance) {
+        float const delta = wrap_pi(omega1 - omega2);
+
+        // Converged.
+        out_pc_solution.delta = delta;
+        out_pc_solution.rho = rho;
+        out_pc_solution.gamma = gamma2;
+        out_pc_solution.beta = beta;
+        out_pc_solution.epf_offset = epf_offset;
+        return true;
+      }
+    }
+
+    // No convergence.
+    return false;
+  }
+
   /// Numerically solve the equation H(Δ) = Δ - F(Δ) * sin(Δ + G(Δ)) for Δ
   /// where:
   ///  F(Δ) = 1/e * X(ρ)
@@ -181,7 +263,7 @@ struct ParallaxCorrectionSolver final {
   /// ## Outputs
   /// Δ is the parallax correction angle, or Winkelparallaxverbesserung.
   /// ρ is the final torpedo gyro angle, or Schusswinkel.
-  static bool Solve(
+  static bool SolveSiemens(
     TorpedoSpec const& torpedo_spec,
     TorpedoTriangle const& triangle,
     ParallaxCorrectionSolution& out_solution
@@ -307,7 +389,14 @@ void Tdc::Update(
 
   if (solution_.has_value()) {
     ParallaxCorrectionSolution pc_solution;
-    if (ParallaxCorrectionSolver::Solve(torpedo_spec_, triangle, pc_solution)) {
+
+#if 1
+    bool result = ParallaxCorrectionSolver::SolveByGeometry(torpedo_spec_, triangle, solution_->pseudo_torpedo_gyro_angle.AsRad(), pc_solution);
+#else
+    bool result = ParallaxCorrectionSolver::SolveSiemens(torpedo_spec_, triangle, pc_solution);
+#endif
+
+    if (result) {
       pc_solution_ = pc_solution;
     }
     else {
@@ -647,11 +736,11 @@ void Tdc::DrawVisualization(
         Color { 255, 165, 0, 128 }
       );
 
-      // Target to equivalent point of fire line.
+      // Equivalent point of fire to target line.
       {
         DrawLineEx(
-          target_position,
           epf_position,
+          target_position,
           2.0f,
           ORANGE
         );

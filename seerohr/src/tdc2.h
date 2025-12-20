@@ -23,7 +23,7 @@ struct TorpedoSpec final {
 
   /// Compute the offset to the equivalent point of fire, or ideeller Torpedoeintrittsort as it is called in German.
   ///
-  /// * `rho`: Final torpedo gyro angle, or Schusswinkel.
+  /// * `rho`: Gyro angle, or Schusswinkel, for which to compute the equivalent point of fire offset.
   raylib::Vector2 ComputeEquivalentPointOfFireOffset(float rho) const;
 };
 
@@ -45,6 +45,9 @@ struct TorpedoTriangleSolution final {
 struct ParallaxCorrectionSolution final {
   float delta = 0.0f; // Parallax correction angle, or Winkelparallaxverbesserung.
   float rho = 0.0f;   // Final torpedo gyro angle, or Schusswinkel.
+  float gamma = 0.0f; // γ = θ1 - Δ: Angle on bow as seen from the equivalent point of fire.
+  float beta = 0.0f;  // β: Lead angle as seen from the equivalent point of fire.
+  raylib::Vector2 epf_offset {};
 };
 
 class Tdc final {

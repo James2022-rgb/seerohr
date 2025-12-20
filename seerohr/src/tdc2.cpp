@@ -204,14 +204,11 @@ struct ParallaxCorrectionSolver final {
       float gamma = 0.0f; // γ = θ1 - Δ: Angle on bow as seen from the equivalent point of fire.
       float beta = 0.0f;  // β: Lead angle as seen from the equivalent point of fire.
       float rho = 0.0f;   // ρ = ω + Δ - β: Final torpedo gyro angle
+      raylib::Vector2 epf_offset {};
     } solution;
 
     // Evaluate H(Δ) = Δ - F(Δ) * sin(Δ + G(Δ))
     auto evaluate = [&ctx, &solution](float delta) -> std::optional<float> {
-      float const distance = ctx.torpedo_spec.distance_to_tube;
-      float const reach = ctx.torpedo_spec.reach;
-      float const turn_radius = ctx.torpedo_spec.turn_radius;
-
       float const gamma = ctx.gamma1 - delta;
 
       float beta = 0.0f;  
@@ -227,9 +224,7 @@ struct ParallaxCorrectionSolver final {
         beta = std::asin(sin_beta);
       }
 
-      float const rho = ctx.omega + delta - beta;
-      float const sin_rho = std::sin(rho);
-      float const cos_rho = std::cos(rho);
+      float const rho = -(ctx.omega + delta - beta);
 
       // X(ρ): Offset to the equivalent point of fire.
       raylib::Vector2 const epf_offset = ctx.torpedo_spec.ComputeEquivalentPointOfFireOffset(rho);
@@ -238,7 +233,7 @@ struct ParallaxCorrectionSolver final {
       float f = 1.0f / ctx.e * std::sqrt(epf_offset.x * epf_offset.x + epf_offset.y * epf_offset.y);
 
       // θ(ρ): Angle between ownship course and line to the equivalent point of fire.
-      float theta = std::atan(epf_offset.y / epf_offset.x);
+      float theta = std::atan2(epf_offset.y, epf_offset.x);
 
       // G(Δ) = ω + θ(ρ)
       float g = ctx.omega + theta;
@@ -247,6 +242,7 @@ struct ParallaxCorrectionSolver final {
       solution.gamma = ctx.gamma1 - delta;
       solution.beta = beta;
       solution.rho = rho;
+      solution.epf_offset = epf_offset;
 
       return delta - f * std::sin(delta + g);
     };
@@ -260,11 +256,15 @@ struct ParallaxCorrectionSolver final {
       for (uint32_t i = 0; i <= kScanCount; ++i) {
         float a = -std::numbers::pi_v<float>;
         float b =  std::numbers::pi_v<float>;
+
+        //a = -20.0f * DEG2RAD;
+        //b =  20.0f * DEG2RAD;
+
         float delta = a + (b - a) * static_cast<float>(i) / static_cast<float>(kScanCount);
         deltas.push_back(delta);
       }
 
-      // H(��) at scan points.
+      // H(Δ) at scan points.
       std::vector<std::optional<float>> hs;
       hs.reserve(deltas.size());
       for (float delta : deltas) {
@@ -386,11 +386,18 @@ struct ParallaxCorrectionSolver final {
     roots.erase(last, roots.end());
 
     if (!roots.empty()) {
-      float delta = roots.front();
+      float delta = 0.0f;
+      auto best = std::min_element(roots.begin(), roots.end(),
+        [](float a, float b) { return std::abs(a) < std::abs(b); });
+      delta = *best;
+
       evaluate(delta);
 
       out_solution.delta = delta;
       out_solution.rho   = solution.rho;
+      out_solution.gamma = solution.gamma;
+      out_solution.beta = solution.beta;
+      out_solution.epf_offset = solution.epf_offset;
       return true;
     }
 
@@ -401,32 +408,17 @@ struct ParallaxCorrectionSolver final {
 } // namespace
 
 raylib::Vector2 TorpedoSpec::ComputeEquivalentPointOfFireOffset(float rho) const {
-  const float a = this->distance_to_tube; // +x forward
-  const float L = this->reach;            // reach distance
-  const float R = this->turn_radius;
+  float const abs_rho = std::abs(rho);
+  float const sin_abs_rho = std::sin(abs_rho);
+  float const cos_abs_rho = std::cos(abs_rho);
 
-  const float alpha = std::abs(rho);               // |ρ|
-  const float s = (rho > 0.f) ? 1.f : (rho < 0.f) ? -1.f : 0.f; // sgn(ρ)
+  float x = this->distance_to_tube + this->reach + this->turn_radius * sin_abs_rho - (this->turn_radius * abs_rho + this->reach) * cos_abs_rho;
+  float y = this->turn_radius * (1.0f - cos_abs_rho) - (this->turn_radius * abs_rho + this->reach) * sin_abs_rho;
 
-  // Trig for |ρ| (arc geometry) and for ρ (final heading direction)
-  const float sinA = std::sin(alpha);
-  const float cosA = std::cos(alpha);
-  const float sinR = std::sin(rho);
-  const float cosR = std::cos(rho);
+  float sign = (rho >= 0.0f) ? -1.0f : 1.0f;
 
-  // Point F: where the torpedo enters the final straight run
-  const float Fx = a + L + R * sinA;
-  const float Fy = s * R * (1.f - cosA);
-
-  // Backshift distance along final run: reach + arc length
-  const float D0 = L + R * alpha;
-
-  // Equivalent point of fire E1 (relative to periscope at origin)
-  const float Ex = Fx - D0 * cosR;
-  const float Ey = Fy - D0 * sinR;
-
-  // Accoun
-  return { Ex, -Ey };
+  // Positive (starboard) rho gives positive y.
+  return { x, y * sign };
 }
 
 void Tdc::Update(
@@ -472,6 +464,23 @@ void Tdc::DrawVisualization(
   );
 
   BeginMode2D(camera);
+
+  // Draw points representing equivalent point of fire, for rho values -120deg to +120deg.
+  {
+    for (float rho_deg = -120.0f; rho_deg <= 120.0f; rho_deg += 1.0f) {
+      float rho = rho_deg * DEG2RAD;
+      raylib::Vector2 const epf_offset = torpedo_spec_.ComputeEquivalentPointOfFireOffset(rho);
+      raylib::Vector2 const epf_position = aiming_device_position + raylib::Vector2 (
+        epf_offset.x * (ownship_course - Angle::RightAngle()).Cos() - epf_offset.y * (ownship_course - Angle::RightAngle()).Sin(),
+        epf_offset.x * (ownship_course - Angle::RightAngle()).Sin() + epf_offset.y * (ownship_course - Angle::RightAngle()).Cos()
+      );
+      DrawCircleV(
+        epf_position,
+        3.0f,
+        GRAY
+      );
+    }
+  }
 
   // Draw a target ghost.
   {
@@ -663,7 +672,7 @@ void Tdc::DrawVisualization(
 
     {
       // So gyro angle positive is starboard, negative port.
-      constexpr float kSign = -1.0f;
+      constexpr float kSign = 1.0f;
 
       float const gyro_angle = kSign * pc_solution_->rho;
 
@@ -736,6 +745,8 @@ void Tdc::DrawVisualization(
     // Draw equivalent point of fire.
     {
       float const gyro_angle = pc_solution_->rho;
+
+      #if 0
       // Draw a line representing the torpedo course to equivalent point of fire.
       DrawLineEx(
         aiming_device_position,
@@ -746,25 +757,37 @@ void Tdc::DrawVisualization(
         5.0f,
         ORANGE
       );
+      #endif
 
-      raylib::Vector2 const epf_offset = torpedo_spec_.ComputeEquivalentPointOfFireOffset(pc_solution_->rho);
+      raylib::Vector2 const epf_offset_physical = torpedo_spec_.ComputeEquivalentPointOfFireOffset(pc_solution_->rho);
+      raylib::Vector2 const epf_offset_screen = { epf_offset_physical.x, -epf_offset_physical.y };
 
-      #if 0
+#if 1
       // Take into account ownship heading.
       raylib::Vector2 const epf_position = aiming_device_position + raylib::Vector2(
-        epf_offset.x * (ownship_course - Angle::RightAngle()).Cos() - epf_offset.y * (ownship_course - Angle::RightAngle()).Sin(),
-        epf_offset.x * (ownship_course - Angle::RightAngle()).Sin() + epf_offset.y * (ownship_course - Angle::RightAngle()).Cos()
+        epf_offset_screen.x * (ownship_course - Angle::RightAngle()).Cos() - epf_offset_screen.y * (ownship_course - Angle::RightAngle()).Sin(),
+        epf_offset_screen.x * (ownship_course - Angle::RightAngle()).Sin() + epf_offset_screen.y * (ownship_course - Angle::RightAngle()).Cos()
       );
-      #else
+#else
       // Ignore ownship heading.
-      raylib::Vector2 const epf_position = aiming_device_position + epf_offset;
-      #endif
+      raylib::Vector2 const epf_position = aiming_device_position + epf_offset_screen;
+#endif
 
       DrawCircleV(
         epf_position,
         8.0f,
         Color { 255, 165, 0, 128 }
       );
+
+      // Target to equivalent point of fire line.
+      {
+        DrawLineEx(
+          target_position,
+          epf_position,
+          2.0f,
+          ORANGE
+        );
+      }
     }
   }
 
@@ -782,7 +805,7 @@ void Tdc::DoPanelImGui(
   ImGui::Text("%s:", GetText(TextId::kInput));
   ImGui::Text("%s: %.1f", GetText(TextId::kOwnCourse), ownship_course.ToDeg());
   SliderFloatWithId("Torpedo Speed", &torpedo_spec_.speed_kn, 1.0f, kMaxTorpedoSpeedKn, "%.0f", ImGuiSliderFlags_None, "%s (kn)", GetText(TextId::kTorpedoSpeed));
-  target_bearing_.ImGuiSliderDegWithId("TargetBearing", -179.0f, 179.0f, "%.1f", "%s (deg)", GetText(TextId::kTargetBearing));
+  target_bearing_.ImGuiSliderDegWithId("TargetBearing", -179.0f, 179.0f, "%.2f", "%s (deg)", GetText(TextId::kTargetBearing));
   SliderFloatWithId("TargetRange", &target_range_m_, 300.0f, 4000.0f, "%.0f", ImGuiSliderFlags_None, "%s (m)", GetText(TextId::kTargetRange));
   SliderFloatWithId("TargetSpeed", &target_speed_kn_, 0.0f, kMaxTargetSpeedKn, "%.0f", ImGuiSliderFlags_None, "%s (kn)", GetText(TextId::kTargetSpeed));
   angle_on_bow_.ImGuiSliderDegWithId("AngleOnBow", -180.0f, 180.0f, "%.1f", "%s (deg)", GetText(TextId::kAngleOnBow));
@@ -804,6 +827,8 @@ void Tdc::DoPanelImGui(
 #if 1
     if (pc_solution_.has_value()) {
       ImGui::Text("Delta: %.3f rad (%.1f deg)", pc_solution_->delta, pc_solution_->delta * RAD2DEG);
+      ImGui::Text("Gamma: %.3f rad (%.1f deg)", pc_solution_->gamma, pc_solution_->gamma * RAD2DEG);
+      ImGui::Text("Beta: %.3f rad (%.1f deg)", pc_solution_->beta, pc_solution_->beta * RAD2DEG);
       ImGui::Text("Gyro Angle: %.1f deg", pc_solution_->rho * RAD2DEG);
     }
 #endif

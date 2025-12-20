@@ -110,6 +110,8 @@ add_executable(
   src/asset.cpp
   src/asset.h
   src/main.cpp
+  src/numerical.cpp
+  src/numerical.h
   src/raygui_integration.cpp
   src/raygui_widgets.cpp
   src/raygui_widgets.h

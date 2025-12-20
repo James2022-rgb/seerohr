@@ -23,7 +23,10 @@ struct TorpedoSpec final {
 
   /// Compute the offset to the equivalent point of fire, or ideeller Torpedoeintrittsort as it is called in German.
   ///
-  /// * `rho`: Gyro angle, or Schusswinkel, for which to compute the equivalent point of fire offset.
+  /// * `rho`: Gyro angle, or Schusswinkel, for which to compute the equivalent point of fire offset. Positive is starboard, negative is port.
+  ///
+  /// ## Returns
+  /// Positive X is forward along the torpedo's initial course, positive Y is to starboard.
   raylib::Vector2 ComputeEquivalentPointOfFireOffset(float rho) const;
 };
 

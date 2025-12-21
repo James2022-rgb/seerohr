@@ -19,6 +19,7 @@ enum class TextId {
   kOutput,
   kTargetCourse,
   kLeadAngle,
+  kTorpedoRunDistance,
   kTimeToImpact,
   kPseudoTorpedoGyroAngle,
   kNoSolution,

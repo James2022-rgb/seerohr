@@ -406,7 +406,7 @@ void Tdc::Update(
   // Convert to signed angle [-pi, +pi) degrees.
   Angle target_bearing = target_bearing_;
   if (std::numbers::pi_v<float> <= target_bearing.AsRad()) {
-    target_bearing = target_bearing - Angle::Angle(std::numbers::pi_v<float> * 2.0f);
+    target_bearing = target_bearing - Angle(std::numbers::pi_v<float> * 2.0f);
   }
 
   TorpedoTriangle triangle {

@@ -202,7 +202,6 @@ struct ParallaxCorrectionSolver final {
     raylib::Vector2 const T { los * std::cos(omega1), los * std::sin(omega1) };
 
     float rho = rho0; // Initialize with initial guess for rho.
-    float delta = 0.0f; // What we are solving for.
 
     for (uint32_t i = 0; i < kIters; ++i) {
       raylib::Vector2 const epf_offset = torpedo_spec.ComputeEquivalentPointOfFireOffset(rho);
@@ -212,11 +211,14 @@ struct ParallaxCorrectionSolver final {
       // Target bearing, as observed from this equivalent point of fire.
       float const omega2 = std::atan2(e_to_t.y, e_to_t.x);
 
+      // Parallax correction delta.
+      float const delta = wrap_pi(omega1 - omega2);
+
       // Unsigned angle on bow, as observed from the equivalent point of fire.
       float const gamma2 = wrap_pi(gamma1 - delta);
 
       // Lead angle as seen from the equivalent point of fire.
-      float beta = 0.0f;
+      float beta2 = 0.0f;
       {
         float sin_beta = (triangle.target_speed_kn / torpedo_spec.speed_kn) * std::sin(gamma2);
 
@@ -225,24 +227,22 @@ struct ParallaxCorrectionSolver final {
           return false;
         }
 
-        beta = std::asin(sin_beta);
+        beta2 = std::asin(sin_beta);
       }
 
       // Desired rho.
-      float const rho_target = wrap_pi(omega2 + beta);
+      float const rho_target = wrap_pi(omega2 + beta2);
 
       // Relaxed update on the circle.
       float const step = wrap_pi(rho_target - rho);
       rho = wrap_pi(rho + kLambda * step);
 
       if (std::abs(step) < kTolerance) {
-        float const delta = wrap_pi(omega1 - omega2);
-
         // Converged.
         out_pc_solution.delta = delta;
         out_pc_solution.rho = rho;
         out_pc_solution.gamma = gamma2;
-        out_pc_solution.beta = beta;
+        out_pc_solution.beta = beta2;
         out_pc_solution.epf_offset = epf_offset;
         return true;
       }

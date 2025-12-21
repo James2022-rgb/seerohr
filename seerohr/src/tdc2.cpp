@@ -239,11 +239,23 @@ struct ParallaxCorrectionSolver final {
 
       if (std::abs(step) < kTolerance) {
         // Converged.
+
+        // Intercept angle, as seen from the equivalent point of fire.
+        float const alpha2 = std::numbers::pi_v<float> - gamma2 - beta2;
+
+        float const los2 = e_to_t.Length();
+        float const torpedo_run_distance_m = los2 * (std::sin(gamma2) / std::sin(alpha2));
+
+        float const torpedo_speed_mps = torpedo_spec.speed_kn * 1852.0f / 3600.0f;
+        float const torpedo_time_to_target_s = torpedo_run_distance_m / torpedo_speed_mps;
+
         out_pc_solution.delta = delta;
         out_pc_solution.rho = rho;
         out_pc_solution.gamma = gamma2;
         out_pc_solution.beta = beta2;
         out_pc_solution.epf_offset = epf_offset;
+        out_pc_solution.torpedo_run_distance_m = torpedo_run_distance_m;
+        out_pc_solution.torpedo_time_to_target_s = torpedo_time_to_target_s;
         return true;
       }
     }
@@ -252,6 +264,8 @@ struct ParallaxCorrectionSolver final {
     return false;
   }
 
+  // Code currently disabled. SIEMENS approach as in the 1944 patent.
+#if 0
   /// Numerically solve the equation H(Δ) = Δ - F(Δ) * sin(Δ + G(Δ)) for Δ
   /// where:
   ///  F(Δ) = 1/e * X(ρ)
@@ -353,6 +367,7 @@ struct ParallaxCorrectionSolver final {
 
     return false;
   }
+#endif
 };
 
 } // namespace
@@ -823,6 +838,9 @@ void Tdc::DoPanelImGui(
 
 #if 1
     if (pc_solution_.has_value()) {
+      ImGui::Text("%s: %.1f m", GetText(TextId::kTorpedoRunDistance), pc_solution_->torpedo_run_distance_m);
+      ImGui::Text("%s: %.1f s", GetText(TextId::kTimeToImpact), pc_solution_->torpedo_time_to_target_s);
+
       ImGui::Text("Delta: %.3f rad (%.1f deg)", pc_solution_->delta, pc_solution_->delta * RAD2DEG);
       ImGui::Text("Gamma: %.3f rad (%.1f deg)", pc_solution_->gamma, pc_solution_->gamma * RAD2DEG);
       ImGui::Text("Beta: %.3f rad (%.1f deg)", pc_solution_->beta, pc_solution_->beta * RAD2DEG);

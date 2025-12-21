@@ -51,6 +51,9 @@ struct ParallaxCorrectionSolution final {
   float gamma = 0.0f; // γ = θ1 - Δ: Angle on bow as seen from the equivalent point of fire.
   float beta = 0.0f;  // β: Lead angle as seen from the equivalent point of fire.
   raylib::Vector2 epf_offset {};
+
+  float torpedo_run_distance_m = 0.0f;
+  float torpedo_time_to_target_s = 0.0f;
 };
 
 class Tdc final {

@@ -513,7 +513,7 @@ private:
       // Title with accent color
       ImGui::TextColored(ImVec4(0.4f, 0.7f, 1.0f, 1.0f), "Torpedovorhaltrechner");
       ImGui::SameLine(screen_width - 120.0f);
-      ImGui::TextDisabled(GetText(TextId::kTabToHide));
+      ImGui::TextDisabled("%s", GetText(TextId::kTabToHide));
       
       ImGui::Spacing();
 

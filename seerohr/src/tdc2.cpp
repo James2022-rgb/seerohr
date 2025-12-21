@@ -400,13 +400,13 @@ void Tdc::Update(
 
   interm_ = triangle.PrepareSolve(ownship_course);
 
-  solution_ = triangle.Solve(interm_, aiming_device_position);
+  tri_solution_ = triangle.Solve(interm_, aiming_device_position);
 
-  if (solution_.has_value()) {
+  if (tri_solution_.has_value()) {
     ParallaxCorrectionSolution pc_solution;
 
 #if 1
-    bool result = ParallaxCorrectionSolver::SolveByGeometry(torpedo_spec_, triangle, solution_->pseudo_torpedo_gyro_angle.AsRad(), pc_solution);
+    bool result = ParallaxCorrectionSolver::SolveByGeometry(torpedo_spec_, triangle, tri_solution_->pseudo_torpedo_gyro_angle.AsRad(), pc_solution);
 #else
     bool result = ParallaxCorrectionSolver::SolveSiemens(torpedo_spec_, triangle, pc_solution);
 #endif
@@ -468,9 +468,9 @@ void Tdc::DrawVisualization(
     );
 
     // If we have a solution, draw a target ghost at the impact position (fainter)
-    if (solution_.has_value()) {
+    if (tri_solution_.has_value()) {
       DrawShipSilhouette(
-        solution_->impact_position,
+        tri_solution_->impact_position,
         target_length,
         target_beam,
         interm_.target_course,
@@ -508,14 +508,14 @@ void Tdc::DrawVisualization(
     DARKGRAY
   );
 
-  if (solution_.has_value()) {
+  if (tri_solution_.has_value()) {
     // Draw pseudo torpedo gyro angle.
     {
       DrawCircleSector(
         aiming_device_position,
         200.0f,
         ownship_course.ToDeg() - 90.0f,
-        ownship_course.ToDeg() + solution_->pseudo_torpedo_gyro_angle.ToDeg() - 90.0f,
+        ownship_course.ToDeg() + tri_solution_->pseudo_torpedo_gyro_angle.ToDeg() - 90.0f,
         32,
         Fade(ORANGE, 0.25f)
       );
@@ -526,7 +526,7 @@ void Tdc::DrawVisualization(
       aiming_device_position,
       150.0f,
       interm_.absolute_target_bearing.ToDeg() - 90.0f,
-      interm_.absolute_target_bearing.ToDeg() + (angle_on_bow_.Sign() * solution_->lead_angle.ToDeg()) - 90.0f,
+      interm_.absolute_target_bearing.ToDeg() + (angle_on_bow_.Sign() * tri_solution_->lead_angle.ToDeg()) - 90.0f,
       32,
       Fade(BLUE, 0.1f)
     );
@@ -534,7 +534,7 @@ void Tdc::DrawVisualization(
     // Draw torpedo course line to impact position.
     DrawLineEx(
       aiming_device_position,
-      solution_->impact_position,
+      tri_solution_->impact_position,
       5.0f,
       Fade(ORANGE, 0.1f)
     );
@@ -542,7 +542,7 @@ void Tdc::DrawVisualization(
     // Draw projected target course line to impact position.
     DrawLineStippled(
       target_position,
-      solution_->impact_position,
+      tri_solution_->impact_position,
       5.0f,
       GRAY
     );
@@ -560,9 +560,9 @@ void Tdc::DrawVisualization(
   );
 
   // If we have a solution, draw the impact position.
-  if (solution_.has_value()) {
+  if (tri_solution_.has_value()) {
     DrawCircleV(
-      solution_->impact_position,
+      tri_solution_->impact_position,
       10.0f,
       ORANGE
     );
@@ -813,11 +813,11 @@ void Tdc::DoPanelImGui(
   ImGui::BeginGroup();
   {
     ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "%s:", GetText(TextId::kOutput));
-    if (!solution_.has_value()) {
+    if (!tri_solution_.has_value()) {
       ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "%s", GetText(TextId::kNoSolution));
     }
     else {
-      TorpedoTriangleSolution const& solution = solution_.value();
+      TorpedoTriangleSolution const& solution = tri_solution_.value();
 
       ImGui::Text("%s: %.1f deg", GetText(TextId::kTargetCourse), solution.target_course.ToDeg());
       ImGui::Text("%s: %.1f deg", GetText(TextId::kLeadAngle), solution.lead_angle.ToDeg());

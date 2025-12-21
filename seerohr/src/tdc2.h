@@ -91,7 +91,7 @@ private:
   // TDC outputs.
   TorpedoTriangleIntermediate interm_;
 
-  std::optional<TorpedoTriangleSolution> solution_;
+  std::optional<TorpedoTriangleSolution> tri_solution_;
   std::optional<ParallaxCorrectionSolution> pc_solution_;
 };
 

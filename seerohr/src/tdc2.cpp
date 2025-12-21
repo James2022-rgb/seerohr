@@ -176,11 +176,13 @@ struct ParallaxCorrectionSolver final {
   /// ## Parameters
   /// - `rho0`: Initial guess for the torpedo gyro angle (Schusswinkel) in radians.
   /// - `aiming_device_position`: For computing the parallax-corrected impact position.
+  /// - `ownship_course_rad`: The course of the ownship in radians.
   static bool SolveByGeometry(
     TorpedoSpec const& torpedo_spec,
     TorpedoTriangle const& triangle,
     float rho0,
     raylib::Vector2 const& aiming_device_position,
+    float ownship_course_rad,
     ParallaxCorrectionSolution& out_pc_solution
   ) {
     constexpr uint32_t kIters = 64;
@@ -206,6 +208,7 @@ struct ParallaxCorrectionSolver final {
     float rho = rho0; // Initialize with initial guess for rho.
 
     for (uint32_t i = 0; i < kIters; ++i) {
+      // Relative to ownship course.
       raylib::Vector2 const epf_offset = torpedo_spec.ComputeEquivalentPointOfFireOffset(rho);
 
       raylib::Vector2 const e_to_t = T - epf_offset;
@@ -251,10 +254,10 @@ struct ParallaxCorrectionSolver final {
         float const torpedo_speed_mps = torpedo_spec.speed_kn * 1852.0f / 3600.0f;
         float const torpedo_time_to_target_s = torpedo_run_distance_m / torpedo_speed_mps;
 
-        raylib::Vector2 const e = aiming_device_position + epf_offset;
+        raylib::Vector2 const e = aiming_device_position + epf_offset.Rotate(ownship_course_rad - std::numbers::pi_v<float> / 2.0f);
         raylib::Vector2 const impact_position = e + raylib::Vector2(
-          torpedo_run_distance_m * std::cos(rho),
-          torpedo_run_distance_m * std::sin(rho)
+          torpedo_run_distance_m * std::cos(ownship_course_rad - std::numbers::pi_v<float> / 2.0f + rho),
+          torpedo_run_distance_m * std::sin(ownship_course_rad - std::numbers::pi_v<float> / 2.0f + rho)
         );
 
         out_pc_solution.delta = delta;
@@ -415,7 +418,14 @@ void Tdc::Update(
     ParallaxCorrectionSolution pc_solution;
 
 #if 1
-    bool result = ParallaxCorrectionSolver::SolveByGeometry(torpedo_spec_, triangle, tri_solution_->pseudo_torpedo_gyro_angle.AsRad(), aiming_device_position, pc_solution);
+    bool result = ParallaxCorrectionSolver::SolveByGeometry(
+      torpedo_spec_,
+      triangle,
+      tri_solution_->pseudo_torpedo_gyro_angle.AsRad(),
+      aiming_device_position,
+      ownship_course.AsRad(),
+      pc_solution
+    );
 #else
     bool result = ParallaxCorrectionSolver::SolveSiemens(torpedo_spec_, triangle, pc_solution);
 #endif

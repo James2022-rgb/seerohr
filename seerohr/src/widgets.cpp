@@ -2,6 +2,7 @@
 #include "widgets.h"
 
 // c++ headers ------------------------------------------
+#include <cstdint>
 #include <cstdarg>
 #include <cmath>
 

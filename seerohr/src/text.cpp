@@ -37,6 +37,7 @@ namespace {
 #define MAKE_TEXT(id, de, en, jp) std::make_pair(TextId::id, std::array<const char*, kLanguageCount>{{ de, en, jp }})
 
 std::unordered_map<TextId, std::array<const char*, kLanguageCount>> const kTextMap = {
+  MAKE_TEXT(kTabToHide,                  "Tab zum Ausblenden", "Tab to hide",              "タブで非表示"),
   MAKE_TEXT(kCourse,                     "Kurs",              "Course",                    "針路"),
   MAKE_TEXT(kInput,                      "Eingabe",           "Input",                     "入力"),
   MAKE_TEXT(kOwnCourse,                  "Eigenkurs",         "Own Course",                "自艦針路"),

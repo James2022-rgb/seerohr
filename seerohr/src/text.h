@@ -7,6 +7,7 @@ enum class Language {
 };
 
 enum class TextId {
+  kTabToHide,
   kCourse,
   kInput,
   kOwnCourse,

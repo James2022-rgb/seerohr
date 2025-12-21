@@ -437,6 +437,7 @@ void Tdc::DrawVisualization(
 
   BeginMode2D(camera);
 
+#if 0
   // Draw points representing equivalent point of fire, for rho values -120deg to +120deg.
   {
     for (float rho_deg = -120.0f; rho_deg <= 120.0f; rho_deg += 1.0f) {
@@ -453,6 +454,7 @@ void Tdc::DrawVisualization(
       );
     }
   }
+#endif
 
   // Draw a target ghost.
   {
@@ -568,31 +570,6 @@ void Tdc::DrawVisualization(
       solution_->impact_position,
       10.0f,
       ORANGE
-    );
-  }
-
-  raylib::DrawTextEx(
-    GetFontDefault(),
-    TextFormat("%s: %s%0.1f", GetText(TextId::kAngleOnBow), angle_on_bow_.AsRad() > 0.0f ? "+" : "", angle_on_bow_.ToDeg()),
-    target_position + raylib::Vector2(25.0f, 0.0f),
-    50.0f,
-    2.0f,
-    DARKGRAY
-  );
-
-  if (solution_.has_value()) {
-    raylib::DrawTextEx(
-      GetFontDefault(),
-      TextFormat(
-        "%s: %0.1f\n%s: %s%0.1f",
-        GetText(TextId::kLeadAngle), solution_->lead_angle.ToDeg(),
-        GetText(TextId::kPseudoTorpedoGyroAngle), solution_->pseudo_torpedo_gyro_angle.AsRad() > 0.0f ? "+" : "", solution_->pseudo_torpedo_gyro_angle.ToDeg(),
-        solution_->pseudo_torpedo_gyro_angle.AsRad() > 0.0f ? "+" : "", solution_->pseudo_torpedo_gyro_angle.ToDeg()
-      ),
-      ownship_position + raylib::Vector2(25.0f, 0.0f),
-      50.0f,
-      2.0f,
-      DARKGRAY
     );
   }
 

@@ -374,6 +374,7 @@ private:
         ownship_.position.y = position_y;
       }
 
+#if 0
       ImGui::Separator();
 
       // Camera info (collapsible)
@@ -381,6 +382,7 @@ private:
         ImGui::Text("Zoom: %.2f", camera_.GetZoom());
         ImGui::Text("Target: (%.1f, %.1f)", camera_.GetTarget().x, camera_.GetTarget().y);
       }
+#endif
     }
     ImGui::End();
   }

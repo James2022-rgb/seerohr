@@ -39,6 +39,69 @@ void InitializeApp(ImFont* im_font);
 void UpdateDrawFrame();
 
 //----------------------------------------------------------------------------------
+// Helper Functions - Ship Drawing
+//----------------------------------------------------------------------------------
+
+/// Draw a simplified U-boat silhouette (top-down view)
+void DrawUBoatSilhouette(
+  raylib::Vector2 const& position,
+  float length,
+  float beam,
+  Angle course,
+  Color hull_color
+) {
+  float const half_length = length * 0.5f;
+  float const half_beam = beam * 0.5f;
+
+  // Direction vectors
+  float const cos_c = (course - Angle::RightAngle()).Cos();
+  float const sin_c = (course - Angle::RightAngle()).Sin();
+
+  raylib::Vector2 const fwd{ cos_c, sin_c };
+  raylib::Vector2 const right{ -sin_c, cos_c };
+
+  // Hull points - pointed bow, rounded stern
+  raylib::Vector2 const bow = position + fwd * half_length;
+  raylib::Vector2 const stern = position - fwd * half_length * 0.85f;
+  raylib::Vector2 const stern_left = stern + right * half_beam * 0.5f;
+  raylib::Vector2 const stern_right = stern - right * half_beam * 0.5f;
+
+  // Mid-hull (widest point, slightly aft of center)
+  raylib::Vector2 const mid_left = position + right * half_beam - fwd * half_length * 0.15f;
+  raylib::Vector2 const mid_right = position - right * half_beam - fwd * half_length * 0.15f;
+
+  // Forward taper points
+  raylib::Vector2 const fwd_left = position + fwd * half_length * 0.55f + right * half_beam * 0.45f;
+  raylib::Vector2 const fwd_right = position + fwd * half_length * 0.55f - right * half_beam * 0.45f;
+
+  // Draw hull triangles (counter-clockwise winding order for raylib)
+  DrawTriangle(bow, fwd_right, fwd_left, hull_color);
+  DrawTriangle(fwd_left, fwd_right, mid_right, hull_color);
+  DrawTriangle(fwd_left, mid_right, mid_left, hull_color);
+  DrawTriangle(mid_left, mid_right, stern_right, hull_color);
+  DrawTriangle(mid_left, stern_right, stern_left, hull_color);
+
+  // Conning tower (darker)
+  float const tower_length = length * 0.12f;
+  float const tower_width = beam * 0.35f;
+  raylib::Vector2 const tower_center = position + fwd * half_length * 0.05f;
+
+  Color tower_color = hull_color;
+  tower_color.r = static_cast<unsigned char>(tower_color.r * 0.6f);
+  tower_color.g = static_cast<unsigned char>(tower_color.g * 0.6f);
+  tower_color.b = static_cast<unsigned char>(tower_color.b * 0.6f);
+
+  raylib::Vector2 const t1 = tower_center + fwd * tower_length * 0.5f + right * tower_width * 0.5f;
+  raylib::Vector2 const t2 = tower_center + fwd * tower_length * 0.5f - right * tower_width * 0.5f;
+  raylib::Vector2 const t3 = tower_center - fwd * tower_length * 0.5f - right * tower_width * 0.5f;
+  raylib::Vector2 const t4 = tower_center - fwd * tower_length * 0.5f + right * tower_width * 0.5f;
+
+  // Counter-clockwise: t1 -> t3 -> t4, t1 -> t2 -> t3
+  DrawTriangle(t1, t3, t4, tower_color);
+  DrawTriangle(t1, t2, t3, tower_color);
+}
+
+//----------------------------------------------------------------------------------
 // Main Entry Point
 //----------------------------------------------------------------------------------
 int main() {
@@ -251,15 +314,16 @@ public:
         DrawGrid(200, 50.0f);
       rlPopMatrix();
 
-      // Ownship.
-      rlPushMatrix();
-        constexpr float kOwnshipBeam = 6.21f;
-        constexpr float kOwnshipLength = 72.39f;
-        rlTranslatef(ownship_.position.x, ownship_.position.y, 0.0f);
-        rlRotatef(ownship_.course.ToDeg(), 0.0f, 0.0f, 1.0f);
-        rlTranslatef(-ownship_.position.x, -ownship_.position.y, 0.0f);
-        DrawEllipseV(ownship_.position, kOwnshipBeam, kOwnshipLength, LIGHTGRAY);
-      rlPopMatrix();
+      // Ownship - U-boat silhouette
+      constexpr float kOwnshipBeam = 6.21f;
+      constexpr float kOwnshipLength = 72.39f;
+      DrawUBoatSilhouette(
+        ownship_.position,
+        kOwnshipLength,
+        kOwnshipBeam,
+        ownship_.course,
+        Color { 100, 110, 120, 255 }  // Steel gray
+      );
 
       EndMode2D();
     }

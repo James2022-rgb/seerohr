@@ -15,6 +15,7 @@ enum class TextId {
   kTargetRange,
   kTargetSpeed,
   kAngleOnBow,
+  kTorpedoSpeedAndTargetSpeed,
   kOutput,
   kTargetCourse,
   kLeadAngle,

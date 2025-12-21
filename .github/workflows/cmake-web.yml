@@ -40,7 +40,13 @@ jobs:
 
       - name: Copy assets
         run: |
+          echo "=== Listing seerohr/assets ==="
+          ls -la seerohr/assets/
+          ls -la seerohr/assets/mplus_fonts/
+          echo "=== Copying assets ==="
           cp -r seerohr/assets/ deploy/assets
+          echo "=== Listing deploy/ ==="
+          ls -laR deploy/
 
       - name: Upload static files as artifact
         id: deployment

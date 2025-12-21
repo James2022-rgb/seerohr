@@ -458,29 +458,24 @@ void Tdc::DrawVisualization(
 
   // Draw a target ghost.
   {
-    rlPushMatrix();
-      rlTranslatef(target_position.x, target_position.y, 0.0f);
-      rlRotatef(interm_.target_course.ToDeg(), 0.0f, 0.0f, 1.0f);
-      rlTranslatef(-target_position.x, -target_position.y, 0.0f);
-      DrawEllipseV(
-        target_position,
-        target_beam, target_length,
-        RED
-      );
-    rlPopMatrix();
+    // Current target position - solid ship
+    DrawShipSilhouette(
+      target_position,
+      target_length,
+      target_beam,
+      interm_.target_course,
+      Color{ 180, 60, 60, 255 }  // Muted red
+    );
 
-    // If we have a solution, draw a target ghost at the impact position.
+    // If we have a solution, draw a target ghost at the impact position (fainter)
     if (solution_.has_value()) {
-      rlPushMatrix();
-        rlTranslatef(solution_->impact_position.x, solution_->impact_position.y, 0.0f);
-        rlRotatef(interm_.target_course.ToDeg(), 0.0f, 0.0f, 1.0f);
-        rlTranslatef(-solution_->impact_position.x, -solution_->impact_position.y, 0.0f);
-        DrawEllipseV(
-          solution_->impact_position,
-          target_beam, target_length,
-          Color { 230, 41, 55, 64 }
-        );
-      rlPopMatrix();
+      DrawShipSilhouette(
+        solution_->impact_position,
+        target_length,
+        target_beam,
+        interm_.target_course,
+        Color{ 180, 60, 60, 80 }  // Same red but transparent (ghost)
+      );
     }
   }
 

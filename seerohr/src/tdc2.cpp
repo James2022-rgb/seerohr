@@ -447,6 +447,8 @@ void Tdc::DrawVisualization(
   float target_beam,
   float target_length
 ) const {
+  constexpr float kTriangleAlpha = 0.1f;
+
   raylib::Vector2 const target_position = ComputeTargetPosition(
     aiming_device_position,
     ownship_course,
@@ -548,7 +550,7 @@ void Tdc::DrawVisualization(
 
     // Draw the torpedo triangle (transparent green, dashed lines).
     {
-      Color const triangle_color = Fade(GREEN, 0.08f);
+      Color const triangle_color = Fade(GREEN, kTriangleAlpha);
 
       // Side 1: Aiming device to target (line of sight)
       DrawLineStippled(
@@ -621,7 +623,7 @@ void Tdc::DrawVisualization(
 
     // Draw the torpedo triangle from the equivalent point of fire (transparent blue).
     {
-      Color const epf_triangle_color = Fade(BLUE, 0.08f);
+      Color const epf_triangle_color = Fade(BLUE, kTriangleAlpha);
 
       // Side 1: EPF to target (line of sight from EPF)
       DrawLineEx(
@@ -674,18 +676,103 @@ void Tdc::DrawVisualization(
       torpedo_spec_.distance_to_tube * (ownship_course - Angle::RightAngle()).Sin()
     );
 
+    // Torpedo track visualization with thickness
     {
-      // Draw torpedo reach.
-      DrawLineEx(
-        tube_position,
-        tube_position + raylib::Vector2(
-          torpedo_spec_.reach * (ownship_course - Angle::RightAngle()).Cos(),
-          torpedo_spec_.reach * (ownship_course - Angle::RightAngle()).Sin()
-        ),
-        5.0f,
-        Fade(ORANGE, 0.25f)
+      constexpr float kTrackThickness = 4.0f;
+      Color const kTrackColor = Color { 255, 140, 0, 200 };  // Orange with some transparency
+
+      // Gyro angle: positive is starboard, negative is port
+      float const gyro_angle = pc_solution_->rho;
+
+      // Forward vector at launch
+      raylib::Vector2 const e0(
+        (ownship_course - Angle::RightAngle()).Cos(),
+        (ownship_course - Angle::RightAngle()).Sin()
+      );
+      // Left-normal vector at launch
+      raylib::Vector2 const l0(
+        -(ownship_course - Angle::RightAngle()).Sin(),
+         (ownship_course - Angle::RightAngle()).Cos()
       );
 
+      // p0: Tube position (start of reach)
+      raylib::Vector2 const p0 = tube_position;
+      
+      // p1: End of reach / start of turn
+      raylib::Vector2 const p1 = p0 + e0 * torpedo_spec_.reach;
+
+      // Chord from the start of the turn to the end of the turn
+      raylib::Vector2 const chord =
+        e0 * (torpedo_spec_.turn_radius * std::sin(std::abs(gyro_angle))) +
+        l0 * (gyro_angle > 0.0f ? 1.0f : -1.0f) * (torpedo_spec_.turn_radius * (1.0f - std::cos(std::abs(gyro_angle))));
+
+      // p2: End of turn / start of final straight run
+      raylib::Vector2 const p2 = p1 + chord;
+
+      // 1. Draw the reach (gerader Vorlauf) - straight line from tube to turn start
+      DrawLineEx(p0, p1, kTrackThickness, kTrackColor);
+
+      // 2. Draw the turning arc with thickness
+      {
+        raylib::Vector2 const center = p1 + l0 * (gyro_angle > 0.0f ? 1.0f : -1.0f) * torpedo_spec_.turn_radius;
+
+        float start_angle = std::atan2(p1.y - center.y, p1.x - center.x);
+        float end_angle = std::atan2(p2.y - center.y, p2.x - center.x);
+        
+        if (gyro_angle > 0.0f) {
+          if (start_angle > end_angle) {
+            start_angle -= std::numbers::pi_v<float> * 2.0f;
+          }
+        }
+        else {
+          if (end_angle > start_angle) {
+            end_angle -= std::numbers::pi_v<float> * 2.0f;
+          }
+        }
+
+        // Draw arc as a series of line segments for thickness
+        constexpr int kArcSegments = 32;
+        float const angle_step = (end_angle - start_angle) / static_cast<float>(kArcSegments);
+        
+        for (int i = 0; i < kArcSegments; ++i) {
+          float const a0 = start_angle + angle_step * static_cast<float>(i);
+          float const a1 = start_angle + angle_step * static_cast<float>(i + 1);
+          
+          raylib::Vector2 const seg_start = center + raylib::Vector2(
+            torpedo_spec_.turn_radius * std::cos(a0),
+            torpedo_spec_.turn_radius * std::sin(a0)
+          );
+          raylib::Vector2 const seg_end = center + raylib::Vector2(
+            torpedo_spec_.turn_radius * std::cos(a1),
+            torpedo_spec_.turn_radius * std::sin(a1)
+          );
+          
+          DrawLineEx(seg_start, seg_end, kTrackThickness, kTrackColor);
+        }
+      }
+
+      // 3. Draw the final straight run from end of turn to impact position
+      DrawLineEx(p2, pc_solution_->impact_position, kTrackThickness, kTrackColor);
+
+      // Draw markers at key points
+      DrawCircleV(p0, 5.0f, Color { 100, 100, 200, 255 });  // Tube position - blue
+      DrawCircleV(p1, 4.0f, Color { 200, 100, 100, 255 });  // End of reach - red
+      DrawCircleV(p2, 4.0f, Color { 255, 165, 0, 255 });    // End of turn - orange
+    }
+
+    // Draw impact position marker (parallax corrected)
+    DrawCircleV(
+      pc_solution_->impact_position,
+      12.0f,
+      Color { 255, 100, 0, 255 }  // Bright orange
+    );
+    DrawCircleLinesV(
+      pc_solution_->impact_position,
+      16.0f,
+      Color { 255, 100, 0, 180 }
+    );
+
+    {
       raylib::Vector2 reach_end_position = tube_position + raylib::Vector2(
         torpedo_spec_.reach * (ownship_course - Angle::RightAngle()).Cos(),
         torpedo_spec_.reach * (ownship_course - Angle::RightAngle()).Sin()
@@ -742,6 +829,7 @@ void Tdc::DrawVisualization(
       // End position after the turn.
       raylib::Vector2 const p2 = p1 + chord;
 
+      #if 0
       DrawCircleV(
         p0,
         4.0f,
@@ -757,6 +845,7 @@ void Tdc::DrawVisualization(
         4.0f,
         ORANGE
       );
+      #endif
 
       // Draw the turning arc.
       {

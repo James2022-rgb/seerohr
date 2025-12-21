@@ -776,7 +776,7 @@ void Tdc::DrawVisualization(
         torpedo_spec_.reach * (ownship_course - Angle::RightAngle()).Sin()
       );
 
-      // Draw two circles representing torpedo turn radius.
+      // Two circles representing torpedo turn radius.
       raylib::Vector2 const starboard_turn_center = reach_end_position + raylib::Vector2(
         torpedo_spec_.turn_radius * (ownship_course + Angle::RightAngle() - Angle::RightAngle()).Cos(),
         torpedo_spec_.turn_radius * (ownship_course + Angle::RightAngle() - Angle::RightAngle()).Sin()
@@ -785,18 +785,21 @@ void Tdc::DrawVisualization(
         torpedo_spec_.turn_radius * (ownship_course - Angle::RightAngle() - Angle::RightAngle()).Cos(),
         torpedo_spec_.turn_radius * (ownship_course - Angle::RightAngle() - Angle::RightAngle()).Sin()
       );
-      DrawCircleV(
-        starboard_turn_center,
-        torpedo_spec_.turn_radius,
-        Fade(PURPLE, 0.25f)
-      );
-      DrawCircleV(
-        port_turn_center,
-        torpedo_spec_.turn_radius,
-        Fade(PURPLE, 0.25f)
-      );
 
-
+      if (pc_solution_->rho >= 0.0f) {
+        DrawCircleV(
+          starboard_turn_center,
+          torpedo_spec_.turn_radius,
+          Fade(PURPLE, 0.1f)
+        );
+      }
+      else {
+        DrawCircleV(
+          port_turn_center,
+          torpedo_spec_.turn_radius,
+          Fade(PURPLE, 0.1f)
+        );
+      }
     }
 
     {
@@ -827,7 +830,7 @@ void Tdc::DrawVisualization(
       // End position after the turn.
       raylib::Vector2 const p2 = p1 + chord;
 
-      #if 0
+#if 0
       DrawCircleV(
         p0,
         4.0f,
@@ -843,7 +846,7 @@ void Tdc::DrawVisualization(
         4.0f,
         ORANGE
       );
-      #endif
+#endif
 
       // Draw the turning arc.
       {
@@ -880,8 +883,8 @@ void Tdc::DrawVisualization(
 void Tdc::DoPanelImGui(
   Angle ownship_course
 ) {
-  constexpr float kMaxTorpedoSpeedKn = 100.0f;
-  constexpr float kMaxTargetSpeedKn = 100.0f;
+  constexpr float kMaxTorpedoSpeedKn = 60.0f;
+  constexpr float kMaxTargetSpeedKn = 60.0f;
 
   // Input section
   ImGui::BeginGroup();

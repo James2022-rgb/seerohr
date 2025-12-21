@@ -476,14 +476,14 @@ void Tdc::DrawVisualization(
       Color{ 180, 60, 60, 255 }  // Muted red
     );
 
-    // If we have a solution, draw a target ghost at the impact position (fainter)
-    if (tri_solution_.has_value()) {
+    // If we have a parallax-corrected solution, draw a target ghost at the corrected impact position (fainter)
+    if (pc_solution_.has_value()) {
       DrawShipSilhouette(
-        tri_solution_->impact_position,
+        pc_solution_->impact_position,
         target_length,
         target_beam,
         interm_.target_course,
-        Color{ 180, 60, 60, 80 }  // Same red but transparent (ghost)
+        Color { 180, 60, 60, 80 }  // Same red but transparent (ghost)
       );
     }
   }
@@ -526,14 +526,6 @@ void Tdc::DrawVisualization(
       interm_.absolute_target_bearing.ToDeg() + (angle_on_bow_.Sign() * tri_solution_->lead_angle.ToDeg()) - 90.0f,
       32,
       Fade(BLUE, 0.1f)
-    );
-
-    // Draw torpedo course line to impact position.
-    DrawLineEx(
-      aiming_device_position,
-      tri_solution_->impact_position,
-      5.0f,
-      Fade(ORANGE, 0.1f)
     );
 
     // Draw projected target course line to impact position.
@@ -599,12 +591,12 @@ void Tdc::DrawVisualization(
     DARKGRAY
   );
 
-  // If we have a solution, draw the impact position.
+  // If we have a non-parallax-corrected solution, draw the impact position but fainter.
   if (tri_solution_.has_value()) {
     DrawCircleV(
       tri_solution_->impact_position,
       10.0f,
-      ORANGE
+      Fade(GREEN, 0.5f)
     );
   }
 

@@ -43,15 +43,31 @@ void UpdateDrawFrame();
 //----------------------------------------------------------------------------------
 
 /// Draw a simplified U-boat silhouette (top-down view)
+/// If min_screen_length > 0, the ship will be scaled up to be at least that many pixels long on screen
 void DrawUBoatSilhouette(
   raylib::Vector2 const& position,
   float length,
   float beam,
   Angle course,
-  Color hull_color
+  Color hull_color,
+  float camera_zoom = 1.0f,
+  float min_screen_length = 0.0f
 ) {
-  float const half_length = length * 0.5f;
-  float const half_beam = beam * 0.5f;
+  // Calculate effective dimensions - optionally scale up for visibility
+  float effective_length = length;
+  float effective_beam = beam;
+  
+  if (min_screen_length > 0.0f && camera_zoom > 0.0f) {
+    float screen_length = length * camera_zoom;
+    if (screen_length < min_screen_length) {
+      float scale = min_screen_length / screen_length;
+      effective_length = length * scale;
+      effective_beam = beam * scale;
+    }
+  }
+
+  float const half_length = effective_length * 0.5f;
+  float const half_beam = effective_beam * 0.5f;
 
   // Direction vectors
   float const cos_c = (course - Angle::RightAngle()).Cos();
@@ -82,8 +98,8 @@ void DrawUBoatSilhouette(
   DrawTriangle(mid_left, stern_right, stern_left, hull_color);
 
   // Conning tower (darker)
-  float const tower_length = length * 0.12f;
-  float const tower_width = beam * 0.35f;
+  float const tower_length = effective_length * 0.12f;
+  float const tower_width = effective_beam * 0.35f;
   raylib::Vector2 const tower_center = position + fwd * half_length * 0.05f;
 
   Color tower_color = hull_color;
@@ -96,7 +112,6 @@ void DrawUBoatSilhouette(
   raylib::Vector2 const t3 = tower_center - fwd * tower_length * 0.5f - right * tower_width * 0.5f;
   raylib::Vector2 const t4 = tower_center - fwd * tower_length * 0.5f + right * tower_width * 0.5f;
 
-  // Counter-clockwise: t1 -> t3 -> t4, t1 -> t2 -> t3
   DrawTriangle(t1, t3, t4, tower_color);
   DrawTriangle(t1, t2, t3, tower_color);
 }
@@ -168,7 +183,7 @@ int main() {
 //----------------------------------------------------------------------------------
 
 struct Ship final {
-  float distance_to_aiming_device = 45.39f;
+  float distance_to_aiming_device = 0.0f;
 
   raylib::Vector2 position;
   Angle course = Angle::FromDeg(0.0f); // North is 0 degrees, clockwise.
@@ -317,12 +332,15 @@ public:
       // Ownship - U-boat silhouette
       constexpr float kOwnshipBeam = 6.21f;
       constexpr float kOwnshipLength = 72.39f;
+      constexpr float kMinScreenLength = 80.0f;  // Minimum 80 pixels on screen
       DrawUBoatSilhouette(
         ownship_.position,
         kOwnshipLength,
         kOwnshipBeam,
         ownship_.course,
-        Color { 100, 110, 120, 255 }  // Steel gray
+        Color { 100, 110, 120, 255 },  // Steel gray
+        camera_.GetZoom(),
+        kMinScreenLength
       );
 
       EndMode2D();

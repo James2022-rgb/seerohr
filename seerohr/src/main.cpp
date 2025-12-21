@@ -447,14 +447,18 @@ private:
       ImGui::TextColored(ImVec4(0.4f, 0.7f, 1.0f, 1.0f), "U-Boat");
       ownship_.course.ImGuiSliderDegWithId("Course", 0.0f, 359.99f, "%.1f", "%s (deg)", GetText(TextId::kCourse));
 
-      float position_x = ownship_.position.x;
-      float position_y = ownship_.position.y;
-      if (ImGui::InputFloat("Position X (m)", &position_x, 10.0f, 100.0f, "%.1f")) {
-        ownship_.position.x = position_x;
+#if 0
+      {
+        float position_x = ownship_.position.x;
+        float position_y = ownship_.position.y;
+        if (ImGui::InputFloat("Position X (m)", &position_x, 10.0f, 100.0f, "%.1f")) {
+          ownship_.position.x = position_x;
+        }
+        if (ImGui::InputFloat("Position Y (m)", &position_y, 10.0f, 100.0f, "%.1f")) {
+          ownship_.position.y = position_y;
+        }
       }
-      if (ImGui::InputFloat("Position Y (m)", &position_y, 10.0f, 100.0f, "%.1f")) {
-        ownship_.position.y = position_y;
-      }
+#endif
 
 #if 0
       ImGui::Separator();

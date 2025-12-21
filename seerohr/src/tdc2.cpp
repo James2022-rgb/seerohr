@@ -503,7 +503,7 @@ void Tdc::DrawVisualization(
     interm_.target_course.ToDeg() - 90.0f,
     interm_.target_course.ToDeg() + angle_on_bow_.ToDeg() - 90.0f,
     32,
-    Fade(BLUE, 0.25f)
+    Fade(GREEN, 0.08f)
   );
 
   // Draw projected ownship course line.
@@ -518,18 +518,6 @@ void Tdc::DrawVisualization(
   );
 
   if (tri_solution_.has_value()) {
-    // Draw pseudo torpedo gyro angle.
-    {
-      DrawCircleSector(
-        aiming_device_position,
-        200.0f,
-        ownship_course.ToDeg() - 90.0f,
-        ownship_course.ToDeg() + tri_solution_->pseudo_torpedo_gyro_angle.ToDeg() - 90.0f,
-        32,
-        Fade(ORANGE, 0.25f)
-      );
-    }
-
     // Draw lead angle.
     DrawCircleSector(
       aiming_device_position,
@@ -558,7 +546,7 @@ void Tdc::DrawVisualization(
 
     // Draw the torpedo triangle (transparent green, dashed lines).
     {
-      Color const triangle_color = Fade(GREEN, 0.3f);
+      Color const triangle_color = Fade(GREEN, 0.08f);
 
       // Side 1: Aiming device to target (line of sight)
       DrawLineStippled(
@@ -631,7 +619,7 @@ void Tdc::DrawVisualization(
 
     // Draw the torpedo triangle from the equivalent point of fire (transparent blue).
     {
-      Color const epf_triangle_color = Fade(BLUE, 0.3f);
+      Color const epf_triangle_color = Fade(BLUE, 0.08f);
 
       // Side 1: EPF to target (line of sight from EPF)
       DrawLineEx(
@@ -672,6 +660,13 @@ void Tdc::DrawVisualization(
       );
     }
 
+    // Draw equivalent point of fire.
+    DrawCircleV(
+      epf_position,
+      8.0f,
+      Color { 255, 165, 0, 128 }
+    );
+
     raylib::Vector2 tube_position = aiming_device_position + raylib::Vector2(
       torpedo_spec_.distance_to_tube * (ownship_course - Angle::RightAngle()).Cos(),
       torpedo_spec_.distance_to_tube * (ownship_course - Angle::RightAngle()).Sin()
@@ -686,7 +681,7 @@ void Tdc::DrawVisualization(
           torpedo_spec_.reach * (ownship_course - Angle::RightAngle()).Sin()
         ),
         5.0f,
-        ORANGE
+        Fade(ORANGE, 0.25f)
       );
 
       raylib::Vector2 reach_end_position = tube_position + raylib::Vector2(
@@ -784,40 +779,6 @@ void Tdc::DrawVisualization(
           start_angle * RAD2DEG,
           end_angle * RAD2DEG,
           64,
-          ORANGE
-        );
-      }
-    }
-
-    // Draw equivalent point of fire.
-    {
-      float const gyro_angle = pc_solution_->rho;
-
-      #if 0
-      // Draw a line representing the torpedo course to equivalent point of fire.
-      DrawLineEx(
-        aiming_device_position,
-        aiming_device_position + raylib::Vector2(
-          10000.0f * (ownship_course + Angle(gyro_angle) - Angle::RightAngle()).Cos(),
-          10000.0f * (ownship_course + Angle(gyro_angle) - Angle::RightAngle()).Sin()
-        ),
-        5.0f,
-        ORANGE
-      );
-      #endif
-
-      DrawCircleV(
-        epf_position,
-        8.0f,
-        Color { 255, 165, 0, 128 }
-      );
-
-      // Equivalent point of fire to target line.
-      {
-        DrawLineEx(
-          epf_position,
-          target_position,
-          2.0f,
           ORANGE
         );
       }

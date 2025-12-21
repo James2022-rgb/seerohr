@@ -23,6 +23,9 @@ enum class TextId {
   kTorpedoRunDistance,
   kTimeToImpact,
   kPseudoTorpedoGyroAngle,
+  kParallaxCorrection,
+  kGyroAngle,
+  kAfterParallaxCorrection,
   kNoSolution,
 };
 

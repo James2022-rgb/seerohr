@@ -53,6 +53,9 @@ std::unordered_map<TextId, std::array<const char*, kLanguageCount>> const kTextM
   MAKE_TEXT(kTorpedoRunDistance,         "Torp. Laufstrecke","Torpedo Run Distance",      "魚雷航走距離"),
   MAKE_TEXT(kTimeToImpact,               "Torp. Laufzeit",   "Torpedo Time to Impact",    "魚雷航走時間"),
   MAKE_TEXT(kPseudoTorpedoGyroAngle,     "Pseudoschußwinkel", "Pseudo Torpedo Gyro Angle", "疑似魚雷ジャイロ角"),
+  MAKE_TEXT(kParallaxCorrection,         "Winkelparallaxverbesserung", "Parallax Correction",    "視差補正"),
+  MAKE_TEXT(kGyroAngle,                  "Schußwinkel",       "Gyro Angle",                "ジャイロ角"),
+  MAKE_TEXT(kAfterParallaxCorrection,    "Nach der Winkelparallaxverbesserung", "After Parallax Correction", "視差補正後"),
   MAKE_TEXT(kNoSolution,                 "Keine Lösung",      "No solution",               "解なし"),
 };
 

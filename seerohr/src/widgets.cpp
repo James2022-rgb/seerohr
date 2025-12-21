@@ -573,8 +573,6 @@ bool AoBDialProcedural(
       border_th);
   }
 
-  // Layout advance
-  ImGui::Dummy(size);
   return changed;
 }
 
@@ -1193,7 +1191,6 @@ bool TorpGeschwUndGegnerfahrtDial(
                   border_th);
   }
 
-  ImGui::Dummy(size);
   ImGui::PopID();
   return changed;
 }

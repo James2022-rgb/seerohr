@@ -412,6 +412,7 @@ void Tdc::Update(
 
   interm_ = triangle.PrepareSolve(ownship_course);
 
+  pc_solution_ = std::nullopt;
   tri_solution_ = triangle.Solve(interm_, aiming_device_position);
 
   if (tri_solution_.has_value()) {
@@ -432,9 +433,6 @@ void Tdc::Update(
 
     if (result) {
       pc_solution_ = pc_solution;
-    }
-    else {
-      pc_solution_ = std::nullopt;
     }
   }
 }

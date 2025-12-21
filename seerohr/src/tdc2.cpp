@@ -402,9 +402,16 @@ void Tdc::Update(
   Angle ownship_course,
   raylib::Vector2 const& aiming_device_position
 ) {
+  // Expect full circle [0, 2pi) degrees for target bearing.
+  // Convert to signed angle [-pi, +pi) degrees.
+  Angle target_bearing = target_bearing_;
+  if (std::numbers::pi_v<float> <= target_bearing.AsRad()) {
+    target_bearing = target_bearing - Angle::Angle(std::numbers::pi_v<float> * 2.0f);
+  }
+
   TorpedoTriangle triangle {
     .torpedo_speed_kn = torpedo_spec_.speed_kn,
-    .target_bearing = target_bearing_,
+    .target_bearing = target_bearing,
     .target_range_m = target_range_m_,
     .target_speed_kn = target_speed_kn_,
     .angle_on_bow = angle_on_bow_
@@ -883,7 +890,7 @@ void Tdc::DoPanelImGui(
     
     ImGui::PushItemWidth(180.0f);
     SliderFloatWithId("Torpedo Speed", &torpedo_spec_.speed_kn, 1.0f, kMaxTorpedoSpeedKn, "%.0f", ImGuiSliderFlags_None, "%s (kn)", GetText(TextId::kTorpedoSpeed));
-    target_bearing_.ImGuiSliderDegWithId("TargetBearing", -179.0f, 179.0f, "%.2f", "%s (deg)", GetText(TextId::kTargetBearing));
+    target_bearing_.ImGuiSliderDegWithId("TargetBearing", 0.0f, 359.0f, "%.2f", "%s (deg)", GetText(TextId::kTargetBearing));
     SliderFloatWithId("TargetRange", &target_range_m_, 300.0f, 4000.0f, "%.0f", ImGuiSliderFlags_None, "%s (m)", GetText(TextId::kTargetRange));
     SliderFloatWithId("TargetSpeed", &target_speed_kn_, 0.0f, kMaxTargetSpeedKn, "%.0f", ImGuiSliderFlags_None, "%s (kn)", GetText(TextId::kTargetSpeed));
     angle_on_bow_.ImGuiSliderDegWithId("AngleOnBow", -180.0f, 180.0f, "%.1f", "%s (deg)", GetText(TextId::kAngleOnBow));

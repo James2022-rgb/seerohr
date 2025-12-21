@@ -85,7 +85,7 @@ private:
 
   TorpedoSpec torpedo_spec_;
   
-  Angle target_bearing_ = Angle::FromDeg(-80.0f);
+  Angle target_bearing_ = Angle::FromDeg(280.0f);
   float target_range_m_ = 900.0f;
   float target_speed_kn_ = 20.0f;
   Angle angle_on_bow_ = Angle::FromDeg(70.0f);

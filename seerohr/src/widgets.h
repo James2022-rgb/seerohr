@@ -74,11 +74,22 @@ bool AoBDialProcedural(
   float label_font_size = 0.0f
 );
 
-bool BearingDialStacked_UBOAT(
+bool BearingDialStacked(
   const char* id,
   const char* bottom_label,      // e.g. "Zielrichtung" / "Schiffspeilung"
   float r_bot,                   // radius of bottom (coarse) dial
   float* bearing_deg_io,         // 0..360
+  const AoBDialStyle& st = AoBDialStyle(),
+  ImFont* font = nullptr,
+  float font_size = 0.0f
+);
+
+bool TorpGeschwUndGegnerfahrtDial(
+  const char* id,
+  const char* label,           // bottom nameplate text
+  float radius,
+  float* target_knots_io,      // Gegnerfahrt (outer needle), 0..55
+  float* torp_knots_io,        // Torpedogeschwindigkeit (inner drum), 0..60
   const AoBDialStyle& st = AoBDialStyle(),
   ImFont* font = nullptr,
   float font_size = 0.0f

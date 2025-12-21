@@ -765,7 +765,7 @@ static void DrawCoarseBearingFace_0to9(ImDrawList* dl, ImVec2 c, float r,
 
 }
 
-bool BearingDialStacked_UBOAT(
+bool BearingDialStacked(
   const char* id,
   const char* bottom_label,
   float r_bot,
@@ -868,5 +868,332 @@ bool BearingDialStacked_UBOAT(
   ImGui::PopID();
 
   if (changed) *bearing_deg_io = Wrap360(bearing);
+  return changed;
+}
+
+namespace {
+
+float AngleFromBearingDeg(float bearing_deg) {
+  // returns screen angle radians for drawing (0 at top)
+  return -std::numbers::pi_v<float> * 0.5f + (bearing_deg * (std::numbers::pi_v<float> / 180.0f));
+}
+
+float WrapPi(float a) {
+  while (a <= -std::numbers::pi_v<float>) a += 2.0f * std::numbers::pi_v<float>;
+  while (a >  +std::numbers::pi_v<float>) a -= 2.0f * std::numbers::pi_v<float>;
+  return a;
+}
+
+void DrawBezel3(ImDrawList* dl, ImVec2 c, float r, ImU32 outer, ImU32 mid, ImU32 face) {
+  dl->AddCircleFilled(c, r, mid, 128);
+  dl->AddCircleFilled(c, r * 0.98f, outer, 128);
+  dl->AddCircleFilled(c, r * 0.90f, face, 128);
+}
+
+void DrawNeedle(ImDrawList* dl, ImVec2 c, float r, float ang, ImU32 col, ImU32 shadow) {
+  ImVec2 dir(std::cos(ang), std::sin(ang));
+  ImVec2 nrm(-dir.y, dir.x);
+
+  ImVec2 tip  = c + dir * (r * 0.78f);
+  ImVec2 base = c - dir * (r * 0.10f);
+
+  float w = r * 0.05f;
+
+  ImVec2 sh(1.5f, 1.5f);
+  dl->AddTriangleFilled(base + nrm*w + sh, base - nrm*w + sh, tip + sh, shadow);
+  dl->AddTriangleFilled(base + nrm*w, base - nrm*w, tip, col);
+
+  dl->AddCircleFilled(c, r * 0.10f, IM_COL32(20,20,20,255), 48);
+  dl->AddCircle(c, r * 0.10f, IM_COL32(255,255,255,70), 48, std::max(1.0f, r * 0.01f));
+}
+
+void DrawDownTriangle(ImDrawList* dl, ImVec2 tip, float w, float h, ImU32 col) {
+  dl->AddTriangleFilled(
+    tip,
+    ImVec2(tip.x - w, tip.y - h),
+    ImVec2(tip.x + w, tip.y - h),
+    col
+  );
+}
+
+
+}
+
+bool TorpGeschwUndGegnerfahrtDial(
+  const char* id,
+  const char* label,
+  float radius,
+  float* target_knots_io,
+  float* torp_knots_io,
+  const AoBDialStyle& st,
+  ImFont* font,
+  float font_size
+) {
+  if (!font) font = ImGui::GetFont();
+  if (font_size <= 0.0f) font_size = ImGui::GetFontSize();
+
+  ImGuiIO& io = ImGui::GetIO();
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+
+  // --- ranges ---
+  constexpr float kTargetMin = 0.0f;
+  constexpr float kTargetMax = 55.0f; // outer needle settable
+  constexpr float kTorpMin   = 0.0f;
+  constexpr float kTorpMax   = 60.0f; // inner drum settable (60 is “real”, wraps to 0 angle)
+
+  // --- widget sizing (dial + bottom nameplate) ---
+  const bool has_label = (label && label[0]);
+  const float gap   = has_label ? radius * st.label_gap : 0.0f;
+  const float lab_h = has_label ? radius * st.label_h   : 0.0f;
+
+  ImVec2 pos  = ImGui::GetCursorScreenPos();
+  ImVec2 size(radius * 2.0f, radius * 2.0f + gap + lab_h);
+
+  ImGui::PushID(id);
+  ImGui::InvisibleButton("##dial", size);
+
+  const ImVec2 c(pos.x + radius, pos.y + radius);
+
+  // Colors (swap to st.col_tick/st.col_text if you have them)
+  const ImU32 col_tick = IM_COL32(235, 225, 205, 255); // warm ivory
+  const ImU32 col_text = IM_COL32(240, 240, 240, 220);
+
+  // --- geometry: outer scale ---
+  // Outer is effectively 0..60 mapped onto full circle; labels stop at 55.
+  auto SpeedToBearingDeg_0to60 = [](float v) -> float {
+    // 0..60 -> 0..360 (60 == 0)
+    float t = (v / 60.0f) * 360.0f;
+    return Wrap360(t);
+  };
+
+  // --- geometry: inner arc window band (upper half) ---
+  const float marker_bearing = 0.0f;                        // 12 o'clock
+  const float marker_ang     = AngleFromBearingDeg(marker_bearing);
+
+  const float win_ang0 = marker_ang - std::numbers::pi_v<float> * 0.5f; // left
+  const float win_ang1 = marker_ang + std::numbers::pi_v<float> * 0.5f; // right
+
+  const float r_win_mid = radius * 0.48f;
+  const float win_band_w = radius * 0.18f;
+  const float r_win_out = r_win_mid + win_band_w * 0.5f;
+  const float r_win_in  = r_win_mid - win_band_w * 0.5f;
+
+  // Hit test: inside band + within upper half angles
+  auto MouseInWindowBand = [&]() -> bool {
+    ImVec2 d(io.MousePos.x - c.x, io.MousePos.y - c.y);
+    float rr = std::sqrt(d.x*d.x + d.y*d.y);
+    if (rr < r_win_in || rr > r_win_out) return false;
+
+    float ang = std::atan2(d.y, d.x);
+    // Convert to our “0 at top” drawing angle space: same as AngleFromBearingDeg
+    // We want relative to marker_ang in (-pi..pi]
+    float rel = WrapPi(ang - marker_ang);
+    return std::fabs(rel) <= std::numbers::pi_v<float> * 0.5f;
+  };
+
+  // --- interaction state (for turning the torp drum like a knob) ---
+  ImGuiStorage* store = ImGui::GetStateStorage();
+  ImGuiID key_ang0 = ImGui::GetID("torp_drag_ang0");
+  ImGuiID key_val0 = ImGui::GetID("torp_drag_val0");
+
+  bool changed = false;
+  bool in_window = MouseInWindowBand();
+
+  // Clamp inputs
+  *target_knots_io = std::clamp(*target_knots_io, kTargetMin, kTargetMax);
+  *torp_knots_io   = std::clamp(*torp_knots_io,   kTorpMin,   kTorpMax);
+
+  if (ImGui::IsItemActivated() && in_window)
+  {
+    // Start “turn drum” gesture
+    ImVec2 d(io.MousePos.x - c.x, io.MousePos.y - c.y);
+    float ang = std::atan2(d.y, d.x);
+    store->SetFloat(key_ang0, ang);
+    store->SetFloat(key_val0, *torp_knots_io);
+  }
+
+  if (ImGui::IsItemActive() && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+  {
+    ImVec2 d(io.MousePos.x - c.x, io.MousePos.y - c.y);
+    float rr2 = d.x*d.x + d.y*d.y;
+
+    if (in_window)
+    {
+      // Turning drum: delta angle -> delta knots (60 knots per revolution)
+      float ang0 = store->GetFloat(key_ang0, 0.0f);
+      float v0   = store->GetFloat(key_val0, *torp_knots_io);
+
+      float ang  = std::atan2(d.y, d.x);
+      float delta = WrapPi(ang - ang0);                // + when mouse moves CW in screen angles
+      float delta_kn = -(delta / (2.0f * std::numbers::pi_v<float>)) * 60.0f; // choose sign that feels right
+
+      float new_torp = std::clamp(v0 + delta_kn, kTorpMin, kTorpMax);
+      if (new_torp != *torp_knots_io) { *torp_knots_io = new_torp; changed = true; }
+    }
+    else
+    {
+      // Outer dial: set target speed by angle, but ignore clicks below the dial circle
+      if (rr2 <= radius * radius)
+      {
+        float bdeg = BearingFromMouse(c, io.MousePos);    // 0..360
+        float v = (bdeg / 360.0f) * 60.0f;                // 0..60
+        // snap / clamp as desired:
+        float new_target = std::clamp(v, kTargetMin, kTargetMax);
+        if (new_target != *target_knots_io) { *target_knots_io = new_target; changed = true; }
+      }
+    }
+  }
+
+  // --- render dial face ---
+  DrawBezel3(dl, c, radius, st.col_bezel_out, st.col_bezel_in, st.col_face);
+
+  // Outer ticks & labels (0..55 shown; scale is 0..60 wrapped)
+  {
+    const float r_ticks = radius * 0.86f;
+    const float r_text  = radius * 0.70f;
+
+    for (int v = 0; v <= 60; ++v)
+    {
+      bool minor = true;
+      bool major5  = (v % 5)  == 0;
+      bool major10 = (v % 10) == 0;
+
+      float len   = major10 ? radius * 0.14f : (major5 ? radius * 0.10f : radius * 0.07f);
+      float thick = major10 ? radius * 0.028f : (major5 ? radius * 0.020f : radius * 0.014f);
+
+      float bdeg = SpeedToBearingDeg_0to60((float)v);
+      float a = AngleFromBearingDeg(bdeg);
+
+      ImVec2 p0(c.x + std::cos(a) * r_ticks,         c.y + std::sin(a) * r_ticks);
+      ImVec2 p1(c.x + std::cos(a) * (r_ticks - len), c.y + std::sin(a) * (r_ticks - len));
+      dl->AddLine(p0, p1, col_tick, thick);
+
+      // Label every 5 (or every 10). The photo labels 0,5,10...55.
+      if (major5 && v <= 55)
+      {
+        char buf[8];
+        ImFormatString(buf, IM_ARRAYSIZE(buf), "%d", v);
+
+        ImVec2 pt(c.x + std::cos(a) * r_text, c.y + std::sin(a) * r_text);
+        AddCenteredTextEx(dl, font, font_size * 0.80f, pt, col_text, buf);
+      }
+    }
+  }
+
+  // Inner arc “window” band (upper semicircle)
+  {
+    // Band fill via thick arc stroke (simple + looks right enough)
+    dl->PathClear();
+    dl->PathArcTo(c, r_win_mid, win_ang0, win_ang1, 64);
+    dl->PathStroke(IM_COL32(25,25,25,255), 0, win_band_w);
+
+    // White border (outer + inner arc)
+    dl->PathClear();
+    dl->PathArcTo(c, r_win_out, win_ang0, win_ang1, 64);
+    dl->PathStroke(IM_COL32(230,230,230,220), 0, std::max(1.0f, radius * 0.012f));
+
+    dl->PathClear();
+    dl->PathArcTo(c, r_win_in, win_ang0, win_ang1, 64);
+    dl->PathStroke(IM_COL32(230,230,230,220), 0, std::max(1.0f, radius * 0.012f));
+
+    // End caps (make it feel like a “window” rather than a pure arc)
+    for (float end_ang : { win_ang0, win_ang1 })
+    {
+      ImVec2 dir(std::cos(end_ang), std::sin(end_ang));
+      ImVec2 p0 = c + dir * r_win_in;
+      ImVec2 p1 = c + dir * r_win_out;
+      dl->AddLine(p0, p1, IM_COL32(230,230,230,220), std::max(1.0f, radius * 0.012f));
+    }
+
+    // Fixed down-facing triangle marker at top center
+    {
+      ImVec2 tip = c + ImVec2(0.0f, -r_win_out - radius * 0.02f);
+      DrawDownTriangle(dl, tip, radius * 0.04f, radius * 0.06f, IM_COL32(240,240,240,220));
+    }
+
+    // Window labels (simple upright text like the photos)
+    AddCenteredTextEx(dl, font, font_size * 0.65f,
+                      ImVec2(c.x - radius * 0.24f, c.y - radius * 0.02f),
+                      IM_COL32(240,240,240,160), "Vt");
+
+    AddCenteredTextEx(dl, font, font_size * 0.60f,
+                      ImVec2(c.x + radius * 0.24f, c.y - radius * 0.02f),
+                      IM_COL32(240,240,240,160), "sm/Std");
+
+    // Inner drum ticks/labels: 0..60 mapped to full circle, rotated so torp_knots sits under marker
+    const float torp_bdeg = SpeedToBearingDeg_0to60(*torp_knots_io);
+    const float torp_ang_at_marker = AngleFromBearingDeg(torp_bdeg);
+    const float drum_offset = marker_ang - torp_ang_at_marker;
+
+    auto VisibleInWindow = [&](float ang) -> bool {
+      float rel = WrapPi(ang - marker_ang);
+      return std::fabs(rel) <= std::numbers::pi_v<float> * 0.5f;
+    };
+
+    const float tick_r0 = r_win_out - radius * 0.012f;
+    const float tick_r1_minor = r_win_mid;
+    const float tick_r1_major = r_win_in + radius * 0.010f;
+
+    for (int v = 0; v <= 60; ++v)
+    {
+      bool major5  = (v % 5) == 0;
+      bool major10 = (v % 10) == 0;
+
+      float bdeg = SpeedToBearingDeg_0to60((float)v);
+      float ang  = AngleFromBearingDeg(bdeg) + drum_offset;
+
+      if (!VisibleInWindow(ang))
+        continue;
+
+      ImVec2 dir(std::cos(ang), std::sin(ang));
+
+      float thick = major10 ? radius * 0.012f : (major5 ? radius * 0.010f : radius * 0.008f);
+      thick = std::max(1.0f, thick);
+
+      float r1 = major5 ? tick_r1_major : tick_r1_minor;
+
+      dl->AddLine(c + dir * tick_r0, c + dir * r1, IM_COL32(240,240,240,170), thick);
+
+      // Labels every 5 (Wolfpack shows 40/45 etc), keep it modest
+      if (major5)
+      {
+        char buf[8];
+        ImFormatString(buf, IM_ARRAYSIZE(buf), "%d", v);
+
+        ImVec2 pt = c + dir * (r_win_mid - radius * 0.02f);
+        AddCenteredTextEx(dl, font, font_size * 0.60f, pt, IM_COL32(240,240,240,170), buf);
+      }
+    }
+  }
+
+  // Outer needle: target speed (0..55 on the 0..60 ring)
+  {
+    float bdeg = SpeedToBearingDeg_0to60(*target_knots_io);
+    float ang  = AngleFromBearingDeg(bdeg);
+    DrawNeedle(dl, c, radius, ang, st.col_needle, st.col_shadow);
+  }
+
+  // Nameplate at bottom (your convention)
+  if (has_label)
+  {
+    const float plate_pad_x = radius * 0.10f;
+    ImVec2 p0(pos.x + plate_pad_x, pos.y + radius * 2.0f + gap);
+    ImVec2 p1(pos.x + radius * 2.0f - plate_pad_x, p0.y + lab_h);
+
+    float rounding  = radius * st.label_rounding;
+    float border_th = std::max(1.0f, radius * st.label_border_th);
+
+    DrawNamePlate(dl, font, font_size,
+                  p0, p1, label,
+                  st.label_screws,
+                  st.col_plate_fill,
+                  st.col_plate_border,
+                  st.col_plate_text,
+                  rounding,
+                  border_th);
+  }
+
+  ImGui::Dummy(size);
+  ImGui::PopID();
   return changed;
 }

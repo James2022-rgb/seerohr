@@ -768,7 +768,7 @@ void Tdc::DoPanelImGui(
   angle_on_bow_.ImGuiSliderDegWithId("AngleOnBow", -180.0f, 180.0f, "%.1f", "%s (deg)", GetText(TextId::kAngleOnBow));
 
   float target_bearing_deg = target_bearing_.ToDeg();
-  if (BearingDialStacked_UBOAT("TargetBearingDial", GetText(TextId::kTargetBearing), 100.0f, &target_bearing_deg)) {
+  if (BearingDialStacked("TargetBearingDial", GetText(TextId::kTargetBearing), 100.0f, &target_bearing_deg)) {
     target_bearing_ = Angle::FromDeg(target_bearing_deg);
   }
 
@@ -778,6 +778,16 @@ void Tdc::DoPanelImGui(
   if (AoBDialProcedural("AoBDial", GetText(TextId::kAngleOnBow), 100.0f, &aob_deg)) {
     angle_on_bow_ = Angle::FromDeg(aob_deg);
   }
+
+  ImGui::SameLine();
+
+  TorpGeschwUndGegnerfahrtDial(
+    "TorpedoSpeedAndTargetSpeedDial",
+    GetText(TextId::kTorpedoSpeedAndTargetSpeed),
+    125.0f,
+    &target_speed_kn_,
+    &torpedo_spec_.speed_kn
+  );
 
   ImGui::Separator();
 

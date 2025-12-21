@@ -772,84 +772,98 @@ void Tdc::DoPanelImGui(
   constexpr float kMaxTorpedoSpeedKn = 100.0f;
   constexpr float kMaxTargetSpeedKn = 100.0f;
 
-  ImGui::Begin("Torpedovorhaltrechner", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
-
-  ImGui::Text("%s:", GetText(TextId::kInput));
-  ImGui::Text("%s: %.1f", GetText(TextId::kOwnCourse), ownship_course.ToDeg());
-  SliderFloatWithId("Torpedo Speed", &torpedo_spec_.speed_kn, 1.0f, kMaxTorpedoSpeedKn, "%.0f", ImGuiSliderFlags_None, "%s (kn)", GetText(TextId::kTorpedoSpeed));
-  target_bearing_.ImGuiSliderDegWithId("TargetBearing", -179.0f, 179.0f, "%.2f", "%s (deg)", GetText(TextId::kTargetBearing));
-  SliderFloatWithId("TargetRange", &target_range_m_, 300.0f, 4000.0f, "%.0f", ImGuiSliderFlags_None, "%s (m)", GetText(TextId::kTargetRange));
-  SliderFloatWithId("TargetSpeed", &target_speed_kn_, 0.0f, kMaxTargetSpeedKn, "%.0f", ImGuiSliderFlags_None, "%s (kn)", GetText(TextId::kTargetSpeed));
-  angle_on_bow_.ImGuiSliderDegWithId("AngleOnBow", -180.0f, 180.0f, "%.1f", "%s (deg)", GetText(TextId::kAngleOnBow));
-
-  float target_bearing_deg = target_bearing_.ToDeg();
-  if (BearingDialStacked("TargetBearingDial", GetText(TextId::kTargetBearing), 100.0f, &target_bearing_deg)) {
-    target_bearing_ = Angle::FromDeg(target_bearing_deg);
-  }
-
-  ImGui::SameLine();
-
-  float aob_deg = angle_on_bow_.ToDeg();
-  if (AoBDialProcedural("AoBDial", GetText(TextId::kAngleOnBow), 100.0f, &aob_deg)) {
-    angle_on_bow_ = Angle::FromDeg(aob_deg);
-  }
-
-  ImGui::SameLine();
-
-  TorpGeschwUndGegnerfahrtDial(
-    "TorpedoSpeedAndTargetSpeedDial",
-    GetText(TextId::kTorpedoSpeedAndTargetSpeed),
-    125.0f,
-    &target_speed_kn_,
-    &torpedo_spec_.speed_kn
-  );
-
-  ImGui::SameLine();
-
+  // Input section
+  ImGui::BeginGroup();
   {
-    static const DialKnot kSchussentfernungKnots[] = {
-      // value(hm), bearing_deg (continuous, increasing; 0°=north, 90°=east)
-      {   3.0f,   0.0f },   // start at north
-      {  10.0f,  70.0f },   // early region
-      {  30.0f, 250.0f },   // big span (precision zone)
-      { 100.0f, 330.0f },   // end near north, but leave a gap to 360°
-    };
+    ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "%s:", GetText(TextId::kInput));
+    ImGui::Text("%s: %.1f", GetText(TextId::kOwnCourse), ownship_course.ToDeg());
+    
+    ImGui::PushItemWidth(180.0f);
+    SliderFloatWithId("Torpedo Speed", &torpedo_spec_.speed_kn, 1.0f, kMaxTorpedoSpeedKn, "%.0f", ImGuiSliderFlags_None, "%s (kn)", GetText(TextId::kTorpedoSpeed));
+    target_bearing_.ImGuiSliderDegWithId("TargetBearing", -179.0f, 179.0f, "%.2f", "%s (deg)", GetText(TextId::kTargetBearing));
+    SliderFloatWithId("TargetRange", &target_range_m_, 300.0f, 4000.0f, "%.0f", ImGuiSliderFlags_None, "%s (m)", GetText(TextId::kTargetRange));
+    SliderFloatWithId("TargetSpeed", &target_speed_kn_, 0.0f, kMaxTargetSpeedKn, "%.0f", ImGuiSliderFlags_None, "%s (kn)", GetText(TextId::kTargetSpeed));
+    angle_on_bow_.ImGuiSliderDegWithId("AngleOnBow", -180.0f, 180.0f, "%.1f", "%s (deg)", GetText(TextId::kAngleOnBow));
+    ImGui::PopItemWidth();
+  }
+  ImGui::EndGroup();
 
-    float range_hm = target_range_m_ / 100.0f;
+  ImGui::SameLine(0.0f, 30.0f);
 
-    if (TargetRangeDialNonLinear("TargetRangeDial", GetText(TextId::kTargetRange), 100.0f, &range_hm, kSchussentfernungKnots, IM_ARRAYSIZE(kSchussentfernungKnots))) {
-      target_range_m_ = std::clamp(range_hm * 100.0f, 300.0f, 10000.0f);
+  // Dials section
+  ImGui::BeginGroup();
+  {
+    float target_bearing_deg = target_bearing_.ToDeg();
+    if (BearingDialStacked("TargetBearingDial", GetText(TextId::kTargetBearing), 90.0f, &target_bearing_deg)) {
+      target_bearing_ = Angle::FromDeg(target_bearing_deg);
+    }
+
+    ImGui::SameLine();
+
+    float aob_deg = angle_on_bow_.ToDeg();
+    if (AoBDialProcedural("AoBDial", GetText(TextId::kAngleOnBow), 100.0f, &aob_deg)) {
+      angle_on_bow_ = Angle::FromDeg(aob_deg);
+    }
+
+    ImGui::SameLine();
+
+    TorpGeschwUndGegnerfahrtDial(
+      "TorpedoSpeedAndTargetSpeedDial",
+      GetText(TextId::kTorpedoSpeedAndTargetSpeed),
+      125.0f,
+      &target_speed_kn_,
+      &torpedo_spec_.speed_kn
+    );
+
+    ImGui::SameLine();
+
+    {
+      static const DialKnot kSchussentfernungKnots[] = {
+        // value(hm), bearing_deg (continuous, increasing; 0°=north, 90°=east)
+        {   3.0f,   0.0f },   // start at north
+        {  10.0f,  70.0f },   // early region
+        {  30.0f, 250.0f },   // big span (precision zone)
+        { 100.0f, 330.0f },   // end near north, but leave a gap to 360°
+      };
+
+      float range_hm = target_range_m_ / 100.0f;
+
+      if (TargetRangeDialNonLinear("TargetRangeDial", GetText(TextId::kTargetRange), 100.0f, &range_hm, kSchussentfernungKnots, IM_ARRAYSIZE(kSchussentfernungKnots))) {
+        target_range_m_ = std::clamp(range_hm * 100.0f, 300.0f, 10000.0f);
+      }
     }
   }
+  ImGui::EndGroup();
 
-  ImGui::Separator();
+  ImGui::SameLine(0.0f, 30.0f);
 
-  ImGui::Text("%s:", GetText(TextId::kOutput));
-  if (!solution_.has_value()) {
-    ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", GetText(TextId::kNoSolution));
-  }
-  else {
-    TorpedoTriangleSolution const& solution = solution_.value();
+  // Output section
+  ImGui::BeginGroup();
+  {
+    ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "%s:", GetText(TextId::kOutput));
+    if (!solution_.has_value()) {
+      ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "%s", GetText(TextId::kNoSolution));
+    }
+    else {
+      TorpedoTriangleSolution const& solution = solution_.value();
 
-    ImGui::Text("%s: %.1f deg", GetText(TextId::kTargetCourse), solution.target_course.ToDeg());
-    ImGui::Text("%s: %.1f deg", GetText(TextId::kLeadAngle), solution.lead_angle.ToDeg());
-    ImGui::Text("%s: %s %.1f deg", GetText(TextId::kPseudoTorpedoGyroAngle), solution.pseudo_torpedo_gyro_angle.AsRad() >= 0.0f ? "R" : "L", solution.pseudo_torpedo_gyro_angle.Abs().ToDeg());
-    ImGui::Text("%s: %.1f s", GetText(TextId::kTimeToImpact), solution.torpedo_time_to_target_s);
+      ImGui::Text("%s: %.1f deg", GetText(TextId::kTargetCourse), solution.target_course.ToDeg());
+      ImGui::Text("%s: %.1f deg", GetText(TextId::kLeadAngle), solution.lead_angle.ToDeg());
+      ImGui::Text("%s: %s %.1f deg", GetText(TextId::kPseudoTorpedoGyroAngle), solution.pseudo_torpedo_gyro_angle.AsRad() >= 0.0f ? "R" : "L", solution.pseudo_torpedo_gyro_angle.Abs().ToDeg());
+      ImGui::Text("%s: %.1f s", GetText(TextId::kTimeToImpact), solution.torpedo_time_to_target_s);
 
 #if 1
-    if (pc_solution_.has_value()) {
-      ImGui::Text("%s: %.1f m", GetText(TextId::kTorpedoRunDistance), pc_solution_->torpedo_run_distance_m);
-      ImGui::Text("%s: %.1f s", GetText(TextId::kTimeToImpact), pc_solution_->torpedo_time_to_target_s);
-
-      ImGui::Text("Delta: %.3f rad (%.1f deg)", pc_solution_->delta, pc_solution_->delta * RAD2DEG);
-      ImGui::Text("Gamma: %.3f rad (%.1f deg)", pc_solution_->gamma, pc_solution_->gamma * RAD2DEG);
-      ImGui::Text("Beta: %.3f rad (%.1f deg)", pc_solution_->beta, pc_solution_->beta * RAD2DEG);
-      ImGui::Text("Gyro Angle: %.1f deg", pc_solution_->rho * RAD2DEG);
-    }
+      if (pc_solution_.has_value()) {
+        ImGui::Spacing();
+        ImGui::TextColored(ImVec4(0.5f, 0.7f, 0.5f, 1.0f), "Parallax Corrected:");
+        ImGui::Text("%s: %.1f m", GetText(TextId::kTorpedoRunDistance), pc_solution_->torpedo_run_distance_m);
+        ImGui::Text("%s: %.1f s", GetText(TextId::kTimeToImpact), pc_solution_->torpedo_time_to_target_s);
+        ImGui::Text("Gyro Angle: %.1f deg", pc_solution_->rho * RAD2DEG);
+      }
 #endif
+    }
   }
-
-  ImGui::End();
+  ImGui::EndGroup();
 }
 
 } // namespace tdc2

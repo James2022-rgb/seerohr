@@ -40,6 +40,7 @@ jobs:
 
       - name: Copy assets
         run: |
+          mkdir -p deploy/assets
           cp -a seerohr/assets/. deploy/assets/
 
       - name: Upload static files as artifact

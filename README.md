@@ -9,6 +9,10 @@
 [![CI Build Native](https://github.com/James2022-rgb/seerohr/actions/workflows/cmake-multi-platform.yml/badge.svg)](https://github.com/James2022-rgb/seerohr/actions/workflows/cmake-multi-platform.yml)
 [![CI Build/Deploy Web](https://github.com/James2022-rgb/seerohr/actions/workflows/cmake-web.yml/badge.svg)](https://github.com/James2022-rgb/seerohr/actions/workflows/cmake-web.yml)
 
+<a href="https://james2022-rgb.github.io/seerohr/seerohr.html" target="_blank" rel="noopener">
+🌐 Open Web Version
+</a>
+
 ![Screenshot](doc/screenshot.png)
 
 </div>

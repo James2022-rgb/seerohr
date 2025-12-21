@@ -110,13 +110,15 @@ add_executable(
   src/asset.cpp
   src/asset.h
   src/main.cpp
+  src/numerical.cpp
+  src/numerical.h
   src/raygui_integration.cpp
   src/raygui_widgets.cpp
   src/raygui_widgets.h
   src/raylib_widgets.cpp
   src/raylib_widgets.h
-  src/tdc.cpp
-  src/tdc.h
+  src/tdc2.cpp
+  src/tdc2.h
   src/text.cpp
   src/text.h
   src/widgets.cpp

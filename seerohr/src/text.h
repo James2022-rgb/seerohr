@@ -7,6 +7,7 @@ enum class Language {
 };
 
 enum class TextId {
+  kTabToHide,
   kCourse,
   kInput,
   kOwnCourse,
@@ -15,11 +16,16 @@ enum class TextId {
   kTargetRange,
   kTargetSpeed,
   kAngleOnBow,
+  kTorpedoSpeedAndTargetSpeed,
   kOutput,
   kTargetCourse,
   kLeadAngle,
+  kTorpedoRunDistance,
   kTimeToImpact,
   kPseudoTorpedoGyroAngle,
+  kParallaxCorrection,
+  kGyroAngle,
+  kAfterParallaxCorrection,
   kNoSolution,
 };
 

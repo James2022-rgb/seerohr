@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 // c++ headers ------------------------------------------
 #include <optional>
@@ -8,6 +8,8 @@
 
 // project headers --------------------------------------
 #include "angle.h"
+
+namespace tdc2 {
 
 struct TorpedoSpec final {
   /// Distance in meters from the aiming device to the torpedo tube.
@@ -21,9 +23,11 @@ struct TorpedoSpec final {
 
   /// Compute the offset to the equivalent point of fire, or ideeller Torpedoeintrittsort as it is called in German.
   ///
-  /// * `delta`: Parallax correction angle, or Winkelparallaxverbesserung.
-  /// * `rho`: Final torpedo gyro angle, or Schusswinkel.
-  raylib::Vector2 ComputeEquivalentPointOfFireOffset(float delta, float rho) const;
+  /// * `rho`: Gyro angle, or Schusswinkel, for which to compute the equivalent point of fire offset. Positive is starboard, negative is port.
+  ///
+  /// ## Returns
+  /// Positive X is forward along the torpedo's initial course, positive Y is to starboard.
+  raylib::Vector2 ComputeEquivalentPointOfFireOffset(float rho) const;
 };
 
 struct TorpedoTriangleIntermediate final {
@@ -38,12 +42,20 @@ struct TorpedoTriangleSolution final {
   Angle intercept_angle = Angle::FromDeg(0.0f);
   float torpedo_time_to_target_s = 0.0f;
   Angle pseudo_torpedo_gyro_angle = Angle::FromDeg(0.0f); // Signed: Positive is starboard, negative is port.
-  raylib::Vector2 impact_position = { 0.0f, 0.0f };
+  raylib::Vector2 impact_position = { 0.0f, 0.0f }; // Note no parallax correction applied.
 };
 
-struct EquivalentPointOfFireSolution final {
+struct ParallaxCorrectionSolution final {
   float delta = 0.0f; // Parallax correction angle, or Winkelparallaxverbesserung.
   float rho = 0.0f;   // Final torpedo gyro angle, or Schusswinkel.
+  float gamma = 0.0f; // γ = θ1 - Δ: Angle on bow as seen from the equivalent point of fire.
+  float beta = 0.0f;  // β: Lead angle as seen from the equivalent point of fire.
+  raylib::Vector2 epf_offset {};
+
+  float torpedo_run_distance_m = 0.0f;
+  float torpedo_time_to_target_s = 0.0f;
+
+  raylib::Vector2 impact_position = { 0.0f, 0.0f };
 };
 
 class Tdc final {
@@ -73,13 +85,16 @@ private:
 
   TorpedoSpec torpedo_spec_;
   
-  Angle target_bearing_ = Angle::FromDeg(-80.0f);
+  Angle target_bearing_ = Angle::FromDeg(280.0f);
   float target_range_m_ = 900.0f;
   float target_speed_kn_ = 20.0f;
   Angle angle_on_bow_ = Angle::FromDeg(70.0f);
 
   // TDC outputs.
   TorpedoTriangleIntermediate interm_;
-  std::optional<TorpedoTriangleSolution> solution_;
-  std::optional<EquivalentPointOfFireSolution> epf_solution_;
+
+  std::optional<TorpedoTriangleSolution> tri_solution_;
+  std::optional<ParallaxCorrectionSolution> pc_solution_;
 };
+
+} // namespace tdc2

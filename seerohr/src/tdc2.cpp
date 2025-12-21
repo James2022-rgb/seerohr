@@ -546,6 +546,49 @@ void Tdc::DrawVisualization(
       5.0f,
       GRAY
     );
+
+    // Draw the torpedo triangle (transparent green, dashed lines).
+    {
+      Color const triangle_color = Fade(GREEN, 0.3f);
+
+      // Side 1: Aiming device to target (line of sight)
+      DrawLineStippled(
+        aiming_device_position,
+        target_position,
+        3.0f,
+        triangle_color
+      );
+
+      // Side 2: Target to impact position (target run)
+      DrawLineStippled(
+        target_position,
+        tri_solution_->impact_position,
+        3.0f,
+        triangle_color
+      );
+
+      // Side 3: Aiming device to impact position (torpedo run)
+      DrawLineStippled(
+        aiming_device_position,
+        tri_solution_->impact_position,
+        3.0f,
+        triangle_color
+      );
+
+      // Draw filled triangle (both winding orders to handle any vertex arrangement)
+      DrawTriangle(
+        aiming_device_position,
+        target_position,
+        tri_solution_->impact_position,
+        triangle_color
+      );
+      DrawTriangle(
+        aiming_device_position,
+        tri_solution_->impact_position,
+        target_position,
+        triangle_color
+      );
+    }
   }
 
   // Draw Draw projected target course line.

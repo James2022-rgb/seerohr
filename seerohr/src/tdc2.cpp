@@ -153,7 +153,7 @@ struct TorpedoTriangle final {
       torpedo_run_distance_m * (interm.absolute_target_bearing + (this->angle_on_bow.Sign() * lead_angle) - Angle::RightAngle()).Sin()
     );
 
-    return TorpedoTriangleSolution{
+    return TorpedoTriangleSolution {
       .target_course = interm.target_course,
       .lead_angle = lead_angle,
       .intercept_angle = intercept_angle,
@@ -175,10 +175,12 @@ struct ParallaxCorrectionSolver final {
   /// 
   /// ## Parameters
   /// - `rho0`: Initial guess for the torpedo gyro angle (Schusswinkel) in radians.
+  /// - `aiming_device_position`: For computing the parallax-corrected impact position.
   static bool SolveByGeometry(
     TorpedoSpec const& torpedo_spec,
     TorpedoTriangle const& triangle,
     float rho0,
+    raylib::Vector2 const& aiming_device_position,
     ParallaxCorrectionSolution& out_pc_solution
   ) {
     constexpr uint32_t kIters = 64;
@@ -191,8 +193,8 @@ struct ParallaxCorrectionSolver final {
     // Signed target bearing.
     float const omega1 = triangle.target_bearing.AsRad();
 
-    // Unsigned angle on bow.
-    float const gamma1 = triangle.angle_on_bow.Abs().AsRad();
+    // Signed angle on bow.
+    float const gamma1 = triangle.angle_on_bow.AsRad();
 
     auto wrap_pi = [](float angle) -> float {
       return std::remainder(angle, 2.0f * std::numbers::pi_v<float>); // (-pi, pi]
@@ -214,7 +216,7 @@ struct ParallaxCorrectionSolver final {
       // Parallax correction delta.
       float const delta = wrap_pi(omega1 - omega2);
 
-      // Unsigned angle on bow, as observed from the equivalent point of fire.
+      // Signed angle on bow, as observed from the equivalent point of fire.
       float const gamma2 = wrap_pi(gamma1 - delta);
 
       // Lead angle as seen from the equivalent point of fire.
@@ -249,6 +251,12 @@ struct ParallaxCorrectionSolver final {
         float const torpedo_speed_mps = torpedo_spec.speed_kn * 1852.0f / 3600.0f;
         float const torpedo_time_to_target_s = torpedo_run_distance_m / torpedo_speed_mps;
 
+        raylib::Vector2 const e = aiming_device_position + epf_offset;
+        raylib::Vector2 const impact_position = e + raylib::Vector2(
+          torpedo_run_distance_m * std::cos(rho),
+          torpedo_run_distance_m * std::sin(rho)
+        );
+
         out_pc_solution.delta = delta;
         out_pc_solution.rho = rho;
         out_pc_solution.gamma = gamma2;
@@ -256,6 +264,7 @@ struct ParallaxCorrectionSolver final {
         out_pc_solution.epf_offset = epf_offset;
         out_pc_solution.torpedo_run_distance_m = torpedo_run_distance_m;
         out_pc_solution.torpedo_time_to_target_s = torpedo_time_to_target_s;
+        out_pc_solution.impact_position = impact_position;
         return true;
       }
     }
@@ -406,7 +415,7 @@ void Tdc::Update(
     ParallaxCorrectionSolution pc_solution;
 
 #if 1
-    bool result = ParallaxCorrectionSolver::SolveByGeometry(torpedo_spec_, triangle, tri_solution_->pseudo_torpedo_gyro_angle.AsRad(), pc_solution);
+    bool result = ParallaxCorrectionSolver::SolveByGeometry(torpedo_spec_, triangle, tri_solution_->pseudo_torpedo_gyro_angle.AsRad(), aiming_device_position, pc_solution);
 #else
     bool result = ParallaxCorrectionSolver::SolveSiemens(torpedo_spec_, triangle, pc_solution);
 #endif
@@ -612,6 +621,57 @@ void Tdc::DrawVisualization(
   }
 
   if (pc_solution_.has_value()) {
+    raylib::Vector2 const epf_offset_physical = torpedo_spec_.ComputeEquivalentPointOfFireOffset(pc_solution_->rho);
+    raylib::Vector2 const epf_offset_screen = { epf_offset_physical.x, -epf_offset_physical.y };
+
+    raylib::Vector2 const epf_position = aiming_device_position + raylib::Vector2(
+      epf_offset_screen.x * (ownship_course - Angle::RightAngle()).Cos() - epf_offset_screen.y * (ownship_course - Angle::RightAngle()).Sin(),
+      epf_offset_screen.x * (ownship_course - Angle::RightAngle()).Sin() + epf_offset_screen.y * (ownship_course - Angle::RightAngle()).Cos()
+    );
+
+    // Draw the torpedo triangle from the equivalent point of fire (transparent blue).
+    {
+      Color const epf_triangle_color = Fade(BLUE, 0.3f);
+
+      // Side 1: EPF to target (line of sight from EPF)
+      DrawLineEx(
+        epf_position,
+        target_position,
+        3.0f,
+        epf_triangle_color
+      );
+
+      // Side 2: Target to impact position (target run)
+      DrawLineEx(
+        target_position,
+        pc_solution_->impact_position,
+        3.0f,
+        epf_triangle_color
+      );
+
+      // Side 3: EPF to impact position (torpedo run from EPF)
+      DrawLineEx(
+        epf_position,
+        pc_solution_->impact_position,
+        3.0f,
+        epf_triangle_color
+      );
+
+      // Draw filled triangle (both winding orders)
+      DrawTriangle(
+        epf_position,
+        target_position,
+        pc_solution_->impact_position,
+        epf_triangle_color
+      );
+      DrawTriangle(
+        epf_position,
+        pc_solution_->impact_position,
+        target_position,
+        epf_triangle_color
+      );
+    }
+
     raylib::Vector2 tube_position = aiming_device_position + raylib::Vector2(
       torpedo_spec_.distance_to_tube * (ownship_course - Angle::RightAngle()).Cos(),
       torpedo_spec_.distance_to_tube * (ownship_course - Angle::RightAngle()).Sin()
@@ -746,20 +806,6 @@ void Tdc::DrawVisualization(
       );
       #endif
 
-      raylib::Vector2 const epf_offset_physical = torpedo_spec_.ComputeEquivalentPointOfFireOffset(pc_solution_->rho);
-      raylib::Vector2 const epf_offset_screen = { epf_offset_physical.x, -epf_offset_physical.y };
-
-#if 1
-      // Take into account ownship heading.
-      raylib::Vector2 const epf_position = aiming_device_position + raylib::Vector2(
-        epf_offset_screen.x * (ownship_course - Angle::RightAngle()).Cos() - epf_offset_screen.y * (ownship_course - Angle::RightAngle()).Sin(),
-        epf_offset_screen.x * (ownship_course - Angle::RightAngle()).Sin() + epf_offset_screen.y * (ownship_course - Angle::RightAngle()).Cos()
-      );
-#else
-      // Ignore ownship heading.
-      raylib::Vector2 const epf_position = aiming_device_position + epf_offset_screen;
-#endif
-
       DrawCircleV(
         epf_position,
         8.0f,
@@ -874,6 +920,7 @@ void Tdc::DoPanelImGui(
         ImGui::Text("%s: %.1f m", GetText(TextId::kTorpedoRunDistance), pc_solution_->torpedo_run_distance_m);
         ImGui::Text("%s: %.1f s", GetText(TextId::kTimeToImpact), pc_solution_->torpedo_time_to_target_s);
         ImGui::Text("Gyro Angle: %.1f deg", pc_solution_->rho * RAD2DEG);
+        ImGui::Text("Parallax Correction Δ: %.2f deg", pc_solution_->delta * RAD2DEG);
       }
 #endif
     }

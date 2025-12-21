@@ -42,7 +42,7 @@ struct TorpedoTriangleSolution final {
   Angle intercept_angle = Angle::FromDeg(0.0f);
   float torpedo_time_to_target_s = 0.0f;
   Angle pseudo_torpedo_gyro_angle = Angle::FromDeg(0.0f); // Signed: Positive is starboard, negative is port.
-  raylib::Vector2 impact_position = { 0.0f, 0.0f };
+  raylib::Vector2 impact_position = { 0.0f, 0.0f }; // Note no parallax correction applied.
 };
 
 struct ParallaxCorrectionSolution final {
@@ -54,6 +54,8 @@ struct ParallaxCorrectionSolution final {
 
   float torpedo_run_distance_m = 0.0f;
   float torpedo_time_to_target_s = 0.0f;
+
+  raylib::Vector2 impact_position = { 0.0f, 0.0f };
 };
 
 class Tdc final {

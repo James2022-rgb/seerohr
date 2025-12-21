@@ -2,6 +2,8 @@
 #include "numerical.h"
 
 // c++ headers ------------------------------------------
+#include <cmath>
+
 #include <vector>
 #include <numbers>
 #include <algorithm>

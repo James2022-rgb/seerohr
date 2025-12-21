@@ -953,16 +953,16 @@ void Tdc::DoPanelImGui(
       ImGui::Text("%s: %.1f deg", GetText(TextId::kTargetCourse), solution.target_course.ToDeg());
       ImGui::Text("%s: %.1f deg", GetText(TextId::kLeadAngle), solution.lead_angle.ToDeg());
       ImGui::Text("%s: %s %.1f deg", GetText(TextId::kPseudoTorpedoGyroAngle), solution.pseudo_torpedo_gyro_angle.AsRad() >= 0.0f ? "R" : "L", solution.pseudo_torpedo_gyro_angle.Abs().ToDeg());
-      ImGui::Text("%s: %.1f s", GetText(TextId::kTimeToImpact), solution.torpedo_time_to_target_s);
 
 #if 1
       if (pc_solution_.has_value()) {
+        ImGui::Text("%s: %.2f deg", GetText(TextId::kParallaxCorrection), pc_solution_->delta * RAD2DEG);
         ImGui::Spacing();
-        ImGui::TextColored(ImVec4(0.5f, 0.7f, 0.5f, 1.0f), "Parallax Corrected:");
+        ImGui::TextColored(ImVec4(0.5f, 0.7f, 0.5f, 1.0f), "%s:", GetText(TextId::kAfterParallaxCorrection));
+        ImGui::Text("%s: %.1f deg", GetText(TextId::kLeadAngle), pc_solution_->beta * RAD2DEG);
+        ImGui::Text("%s: %s %.1f deg", GetText(TextId::kGyroAngle), pc_solution_->rho >= 0.0f ? "R" : "L", std::abs(pc_solution_->rho) * RAD2DEG);
         ImGui::Text("%s: %.1f m", GetText(TextId::kTorpedoRunDistance), pc_solution_->torpedo_run_distance_m);
         ImGui::Text("%s: %.1f s", GetText(TextId::kTimeToImpact), pc_solution_->torpedo_time_to_target_s);
-        ImGui::Text("Gyro Angle: %.1f deg", pc_solution_->rho * RAD2DEG);
-        ImGui::Text("Parallax Correction Δ: %.2f deg", pc_solution_->delta * RAD2DEG);
       }
 #endif
     }

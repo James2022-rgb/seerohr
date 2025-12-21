@@ -789,6 +789,24 @@ void Tdc::DoPanelImGui(
     &torpedo_spec_.speed_kn
   );
 
+  ImGui::SameLine();
+
+  {
+    static const DialKnot kSchussentfernungKnots[] = {
+      // value(hm), bearing_deg (continuous, increasing; 0°=north, 90°=east)
+      {   3.0f,   0.0f },   // start at north
+      {  10.0f,  70.0f },   // early region
+      {  30.0f, 250.0f },   // big span (precision zone)
+      { 100.0f, 330.0f },   // end near north, but leave a gap to 360°
+    };
+
+    float range_hm = target_range_m_ / 100.0f;
+
+    if (TargetRangeDialNonLinear("TargetRangeDial", GetText(TextId::kTargetRange), 100.0f, &range_hm, kSchussentfernungKnots, IM_ARRAYSIZE(kSchussentfernungKnots))) {
+      target_range_m_ = std::clamp(range_hm * 100.0f, 300.0f, 10000.0f);
+    }
+  }
+
   ImGui::Separator();
 
   ImGui::Text("%s:", GetText(TextId::kOutput));

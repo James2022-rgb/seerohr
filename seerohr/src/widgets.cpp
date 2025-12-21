@@ -1194,3 +1194,319 @@ bool TorpGeschwUndGegnerfahrtDial(
   ImGui::PopID();
   return changed;
 }
+
+namespace {
+
+float Lerp(float a, float b, float t) { return a + (b - a) * t; }
+
+bool TR_ValidateKnots(const DialKnot* k, int count) {
+  if (!k || count < 2) return false;
+  for (int i = 0; i + 1 < count; ++i) {
+    if (!(k[i+1].value > k[i].value)) return false;
+    if (!(k[i+1].bearing_deg > k[i].bearing_deg)) return false;
+  }
+  return true;
+}
+
+float TR_ValueToBearingCont(const DialKnot* k, int count, float v) {
+  if (v <= k[0].value) return k[0].bearing_deg;
+  if (v >= k[count-1].value) return k[count-1].bearing_deg;
+
+  for (int i = 0; i + 1 < count; ++i)
+  {
+    if (v >= k[i].value && v <= k[i+1].value)
+    {
+      float t = (v - k[i].value) / (k[i+1].value - k[i].value);
+      return Lerp(k[i].bearing_deg, k[i+1].bearing_deg, t);
+    }
+  }
+  return k[count-1].bearing_deg;
+}
+
+float TR_BearingContToValue(const DialKnot* k, int count, float b) {
+  if (b <= k[0].bearing_deg) return k[0].value;
+  if (b >= k[count-1].bearing_deg) return k[count-1].value;
+
+  for (int i = 0; i + 1 < count; ++i)
+  {
+    if (b >= k[i].bearing_deg && b <= k[i+1].bearing_deg)
+    {
+      float t = (b - k[i].bearing_deg) / (k[i+1].bearing_deg - k[i].bearing_deg);
+      return Lerp(k[i].value, k[i+1].value, t);
+    }
+  }
+  return k[count-1].value;
+}
+
+float TR_UnwrapBearingToSpan(float b_wrapped, float span_start_cont, float span_end_cont) {
+  // Choose a continuous bearing equivalent to b_wrapped that's closest to the span [start..end].
+  // For typical spans <= 360, this does the right thing.
+  float start_mod = Wrap360(span_start_cont);
+  float bc = b_wrapped;
+  if (bc < start_mod) bc += 360.0f;
+
+  // If span is longer than 360, you may need additional +360 adjustments.
+  // Clamp to span:
+  bc = std::clamp(bc, span_start_cont, span_end_cont);
+  return bc;
+}
+
+float TR_UnwrapBearingToSpanStable(
+  float b_wrapped_0_360,
+  float prev_cont,
+  float span_start_cont,
+  float span_end_cont
+) {
+  // Choose the equivalent b + 360*k closest to prev_cont.
+  float k = std::round((prev_cont - b_wrapped_0_360) / 360.0f);
+  float bc = b_wrapped_0_360 + 360.0f * k;
+
+  // Clamp into the span (this enforces the intentional “gap” as a hard stop).
+  return std::clamp(bc, span_start_cont, span_end_cont);
+}
+
+// Superellipse “squarish knob” base (n=4 is a good squircle)
+void TR_DrawSuperellipseFilled(ImDrawList* dl, ImVec2 c, float rx, float ry, float n, int seg, ImU32 col) {
+  dl->PathClear();
+  for (int i = 0; i < seg; ++i)
+  {
+    float t = (i / (float)seg) * 2.0f * std::numbers::pi_v<float>;
+    float ct = std::cos(t), st = std::sin(t);
+    auto sgn = [](float x) { return (x < 0.f) ? -1.f : 1.f; };
+    float x = rx * sgn(ct) * std::pow(std::fabs(ct), 2.0f / n);
+    float y = ry * sgn(st) * std::pow(std::fabs(st), 2.0f / n);
+    dl->PathLineTo(ImVec2(c.x + x, c.y + y));
+  }
+  dl->PathFillConvex(col);
+}
+
+// Draw a chunky knob handle + pointer, rotated by `ang` (screen radians)
+void TR_DrawRangeKnobHandle(ImDrawList* dl, ImVec2 c, float knob_r, float ang,
+                         ImU32 col_body, ImU32 col_edge, ImU32 col_shadow, ImU32 col_pointer
+) {
+  const float cs = std::cos(ang), sn = std::sin(ang);
+  ImVec2 dir(cs, sn);
+  ImVec2 nrm(-sn, cs);
+
+  const float base_in   = knob_r * 0.08f;
+  const float base_out  = knob_r * 0.92f;
+  const float w_in      = knob_r * 0.24f;
+  const float w_out     = knob_r * 0.14f;
+
+  ImVec2 p0 = c + dir * base_in  + nrm * w_in;
+  ImVec2 p1 = c + dir * base_in  - nrm * w_in;
+  ImVec2 p2 = c + dir * base_out - nrm * w_out;
+  ImVec2 p3 = c + dir * base_out + nrm * w_out;
+
+  const float tip_len = knob_r * 0.18f;
+  const float tip_w   = knob_r * 0.10f;
+
+  ImVec2 tip = c + dir * (base_out + tip_len);
+  ImVec2 tL  = c + dir * (base_out + tip_len * 0.15f) + nrm * tip_w;
+  ImVec2 tR  = c + dir * (base_out + tip_len * 0.15f) - nrm * tip_w;
+
+  ImVec2 sh(2.0f, 2.0f);
+  dl->AddQuadFilled(p0+sh, p1+sh, p2+sh, p3+sh, col_shadow);
+  dl->AddTriangleFilled(tip+sh, tL+sh, tR+sh, col_shadow);
+
+  dl->AddQuadFilled(p0, p1, p2, p3, col_body);
+  dl->AddQuad(p0, p1, p2, p3, col_edge, 0.0f);
+
+  // subtle highlight strip
+  {
+    ImVec2 q0 = c + dir * (base_in + knob_r*0.08f) + nrm * (w_in * 0.30f);
+    ImVec2 q1 = c + dir * (base_in + knob_r*0.08f) + nrm * (w_in * 0.05f);
+    ImVec2 q2 = c + dir * (base_out - knob_r*0.10f) + nrm * (w_out * 0.05f);
+    ImVec2 q3 = c + dir * (base_out - knob_r*0.10f) + nrm * (w_out * 0.30f);
+    dl->AddQuadFilled(q0, q1, q2, q3, IM_COL32(255,255,255,18));
+  }
+
+  dl->AddTriangleFilled(tip, tL, tR, col_pointer);
+  dl->AddTriangle(tip, tL, tR, IM_COL32(0,0,0,120), 1.0f);
+}
+
+}
+
+bool TargetRangeDialNonLinear(
+  char const* id,
+  char const* label,
+  float radius,
+  float* range_hm_io,
+  DialKnot const* knots,
+  int knot_count,
+  AoBDialStyle const& st,
+  ImFont* font,
+  float font_size
+) {
+  if (!font) font = ImGui::GetFont();
+  if (font_size <= 0.0f) font_size = ImGui::GetFontSize();
+
+  if (!range_hm_io || !TR_ValidateKnots(knots, knot_count))
+  {
+    ImGui::TextUnformatted("TargetRangeDialNonLinear: invalid knots");
+    return false;
+  }
+
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  ImGuiIO& io = ImGui::GetIO();
+
+  const bool has_label = (label && label[0]);
+  const float gap = has_label ? radius * st.label_gap : 0.0f;
+  const float lab_h = has_label ? radius * st.label_h : 0.0f;
+
+  const ImVec2 size(radius * 2.0f, radius * 2.0f + gap + lab_h);
+
+  ImGui::PushID(id);
+  ImGui::InvisibleButton("##TargetRangeDial", size);
+
+  const ImVec2 pos = ImGui::GetItemRectMin();
+  const ImVec2 c(pos.x + radius, pos.y + radius);
+
+  ImGuiStorage* store = ImGui::GetStateStorage();
+  ImGuiID key_prev_cont = ImGui::GetID("range_prev_cont_bearing");
+
+  const float vmin = knots[0].value;
+  const float vmax = knots[knot_count - 1].value;
+  *range_hm_io = std::clamp(*range_hm_io, vmin, vmax);
+
+  // --- interaction: drag the knob (inside knob radius) ---
+  bool changed = false;
+  const float knob_r = radius * 0.46f;
+
+  if (ImGui::IsItemActivated() && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+    ImVec2 d(io.MousePos.x - c.x, io.MousePos.y - c.y);
+    if (d.x*d.x + d.y*d.y <= knob_r*knob_r)
+    {
+      float bc0 = TR_ValueToBearingCont(knots, knot_count, *range_hm_io);
+      store->SetFloat(key_prev_cont, bc0);
+    }
+  }
+
+  if (ImGui::IsItemActive() && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+    ImVec2 d(io.MousePos.x - c.x, io.MousePos.y - c.y);
+    if (d.x*d.x + d.y*d.y <= knob_r*knob_r)
+    {
+      float b_wrapped = BearingFromMouse(c, io.MousePos); // 0..360
+
+      float b0 = knots[0].bearing_deg;
+      float b1 = knots[knot_count - 1].bearing_deg;
+
+      float prev = store->GetFloat(key_prev_cont,
+                                   TR_ValueToBearingCont(knots, knot_count, *range_hm_io));
+
+      float bc = TR_UnwrapBearingToSpanStable(b_wrapped, prev, b0, b1);
+      store->SetFloat(key_prev_cont, bc);
+
+      float new_v = std::clamp(TR_BearingContToValue(knots, knot_count, bc), vmin, vmax);
+      if (new_v != *range_hm_io) { *range_hm_io = new_v; changed = true; }
+    }
+  }
+
+  // --- colors ---
+  const ImU32 col_tick = IM_COL32(235, 225, 205, 255);
+  const ImU32 col_text = IM_COL32(240, 240, 240, 220);
+
+  // --- bezel/face ---
+  DrawBezel3(dl, c, radius, st.col_bezel_out, st.col_bezel_in, st.col_face);
+
+  // --- ticks & labels on the fixed (non-linear) scale ---
+  const float r_ticks = radius * 0.86f;
+  const float r_text = radius * 0.70f;
+
+  auto DrawTickAtValue = [&](float v, float len, float thick)
+    {
+      float bc = TR_ValueToBearingCont(knots, knot_count, v);
+      float a = AngleFromBearingDeg(Wrap360(bc)); // 0°=north, CW
+      ImVec2 p0(c.x + std::cos(a) * r_ticks, c.y + std::sin(a) * r_ticks);
+      ImVec2 p1(c.x + std::cos(a) * (r_ticks - len), c.y + std::sin(a) * (r_ticks - len));
+      dl->AddLine(p0, p1, col_tick, thick);
+    };
+
+  // Tick policy:
+  // - dense region [vmin..30]: 1hm ticks
+  // - mid (30..60]: 2hm ticks
+  // - far (60..vmax]: 5hm ticks
+  const int ivmin = (int)std::floor(vmin + 0.5f);
+  const int ivmax = (int)std::floor(vmax + 0.5f);
+
+  for (int v = ivmin; v <= ivmax; ++v)
+  {
+    bool dense = (v <= 30);
+    bool mid = (v > 30 && v <= 60);
+
+    bool tick_ok = dense ? true : (mid ? ((v % 2) == 0) : ((v % 5) == 0));
+    if (!tick_ok) continue;
+
+    bool major10 = (v % 10) == 0;
+    bool major5 = (v % 5) == 0;
+
+    float len = major10 ? radius * 0.14f : (major5 ? radius * 0.10f : radius * 0.07f);
+    float thick = major10 ? radius * 0.028f : (major5 ? radius * 0.020f : radius * 0.014f);
+
+    DrawTickAtValue((float)v, len, thick);
+
+    // Labels: show vmin..10 (so for your case: 3..10),
+    // then every 10 from 20..vmax (20..100).
+    bool label_small = (v >= ivmin && v <= 10);
+    bool label_big = (v >= 20 && (v % 10) == 0);
+
+    if (label_small || label_big)
+    {
+      float bc = TR_ValueToBearingCont(knots, knot_count, (float)v);
+      float a = AngleFromBearingDeg(Wrap360(bc));
+      ImVec2 pt(c.x + std::cos(a) * r_text, c.y + std::sin(a) * r_text);
+
+      char buf[8];
+      ImFormatString(buf, IM_ARRAYSIZE(buf), "%d", v);
+      AddCenteredTextEx(dl, font, font_size * 0.80f, pt, col_text, buf);
+    }
+  }
+
+  // “hm” on the face (matches the reference vibe better than on the knob)
+  AddCenteredTextEx(dl, font, font_size * 0.70f,
+    c - ImVec2(0.0f, radius * 0.33f),
+    IM_COL32(240, 240, 240, 110), "hm");
+
+  // --- knob base + rotating handle/pointer ---
+  {
+    TR_DrawSuperellipseFilled(dl, c + ImVec2(2, 2), knob_r, knob_r, 4.0f, 64, IM_COL32(0, 0, 0, 120));
+    TR_DrawSuperellipseFilled(dl, c, knob_r, knob_r, 4.0f, 64, IM_COL32(30, 30, 30, 255));
+
+    // small highlight
+    dl->AddCircleFilled(c - ImVec2(knob_r * 0.18f, knob_r * 0.18f),
+      radius * 0.06f, IM_COL32(255, 255, 255, 26), 24);
+
+    // handle rotates to the selected value
+    float bc = TR_ValueToBearingCont(knots, knot_count, *range_hm_io);
+    float ang_ptr = AngleFromBearingDeg(Wrap360(bc));
+
+    TR_DrawRangeKnobHandle(dl, c, knob_r, ang_ptr,
+      IM_COL32(70, 70, 70, 255),     // handle body
+      IM_COL32(0, 0, 0, 140),        // edge
+      IM_COL32(0, 0, 0, 120),        // shadow
+      IM_COL32(240, 240, 240, 220)); // pointer
+  }
+
+  // --- bottom nameplate ---
+  if (has_label)
+  {
+    const float plate_pad_x = radius * 0.10f;
+    ImVec2 p0(pos.x + plate_pad_x, pos.y + radius * 2.0f + gap);
+    ImVec2 p1(pos.x + radius * 2.0f - plate_pad_x, p0.y + lab_h);
+
+    const float rounding = radius * st.label_rounding;
+    const float border_th = std::max(1.0f, radius * st.label_border_th);
+
+    DrawNamePlate(dl, font, font_size,
+      p0, p1, label,
+      st.label_screws,
+      st.col_plate_fill,
+      st.col_plate_border,
+      st.col_plate_text,
+      rounding,
+      border_th);
+  }
+
+  ImGui::PopID();
+  return changed;
+}

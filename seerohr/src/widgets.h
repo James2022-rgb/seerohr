@@ -94,3 +94,20 @@ bool TorpGeschwUndGegnerfahrtDial(
   ImFont* font = nullptr,
   float font_size = 0.0f
 );
+
+struct DialKnot {
+  float value;       // hm
+  float bearing_deg; // continuous degrees, strictly increasing (may exceed 360)
+};
+
+bool TargetRangeDialNonLinear(
+  char const* id,
+  char const* label,
+  float radius,
+  float* range_hm_io,
+  DialKnot const* knots,
+  int knot_count,
+  AoBDialStyle const& st = AoBDialStyle(),
+  ImFont* font = nullptr,
+  float font_size = 0.0f
+);

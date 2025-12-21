@@ -43,6 +43,20 @@ bool SliderFloatWithIdV(
   return ImGui::SliderFloat(label.c_str(), v, v_min, v_max, value_format, flags);
 }
 
+namespace {
+
+ImVec2 operator+(const ImVec2& lhs, const ImVec2& rhs) {
+  return ImVec2(lhs.x + rhs.x, lhs.y + rhs.y);
+}
+ImVec2 operator-(const ImVec2& lhs, const ImVec2& rhs) {
+  return ImVec2(lhs.x - rhs.x, lhs.y - rhs.y);
+}
+ImVec2 operator*(const ImVec2& lhs, float rhs) {
+  return ImVec2(lhs.x * rhs, lhs.y * rhs);
+}
+
+}
+
 // Code from `imgui.cpp`.
 namespace {
 
@@ -123,15 +137,67 @@ int ImTextCharFromUtf8(unsigned int* out_char, const char* in_text, const char* 
 
 namespace {
 
-ImVec2 operator+(const ImVec2& lhs, const ImVec2& rhs) {
-    return ImVec2(lhs.x + rhs.x, lhs.y + rhs.y);
+void AddCenteredTextEx(ImDrawList* dl, ImFont* font, float font_size,
+                             ImVec2 center, ImU32 col, const char* txt)
+{
+  ImVec2 ts = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, txt);
+  dl->AddText(font, font_size, center - ts * 0.5f, col, txt);
 }
-ImVec2 operator-(const ImVec2& lhs, const ImVec2& rhs) {
-    return ImVec2(lhs.x - rhs.x, lhs.y - rhs.y);
+
+void DrawScrewHead(ImDrawList* dl, ImVec2 c, float r)
+{
+  // Head
+  dl->AddCircleFilled(c, r, IM_COL32(190,190,190,220), 24);
+  dl->AddCircle(c, r, IM_COL32(0,0,0,160), 24, std::max(1.0f, r * 0.22f));
+  // Slot
+  dl->AddLine(c - ImVec2(r*0.65f, 0.0f), c + ImVec2(r*0.65f, 0.0f), IM_COL32(0,0,0,170), std::max(1.0f, r * 0.25f));
+  // Tiny highlight
+  dl->AddCircleFilled(c - ImVec2(r*0.25f, r*0.25f), r*0.18f, IM_COL32(255,255,255,120), 12);
 }
-ImVec2 operator*(const ImVec2& lhs, float rhs) {
-    return ImVec2(lhs.x * rhs, lhs.y * rhs);
+
+void DrawNamePlate(ImDrawList* dl, ImFont* font, float font_size,
+                          ImVec2 p0, ImVec2 p1, const char* label,
+                          bool screws = true,
+                          ImU32 col_fill   = IM_COL32(10,10,10,255),
+                          ImU32 col_border = IM_COL32(240,240,240,170),
+                          ImU32 col_text   = IM_COL32(240,240,240,220),
+                          float rounding = 10.0f,
+                          float border_th = 1.0f)
+{
+  // Shadow
+  dl->AddRectFilled(p0 + ImVec2(2,2), p1 + ImVec2(2,2), IM_COL32(0,0,0,120), rounding);
+
+  // Body
+  dl->AddRectFilled(p0, p1, col_fill, rounding);
+
+  // Border
+  dl->AddRect(p0, p1, col_border, rounding, 0, border_th);
+
+  // Screws
+  if (screws)
+  {
+    const float h = (p1.y - p0.y);
+    const float sr = h * 0.22f;
+    const float inset_x = sr * 1.8f;
+    const float inset_y = sr * 1.6f;
+
+    ImVec2 sL(p0.x + inset_x, p0.y + inset_y);
+    ImVec2 sR(p1.x - inset_x, p0.y + inset_y);
+    DrawScrewHead(dl, sL, sr);
+    DrawScrewHead(dl, sR, sr);
+  }
+
+  // Text
+  if (label && label[0])
+  {
+    ImVec2 tc((p0.x+p1.x)*0.5f, (p0.y+p1.y)*0.5f);
+    AddCenteredTextEx(dl, font, font_size, tc, col_text, label);
+  }
 }
+
+}
+
+namespace {
 
 inline ImVec2 Rot(ImVec2 p, float c, float s) { return ImVec2(p.x * c - p.y * s, p.x * s + p.y * c); }
 
@@ -229,13 +295,6 @@ void PathFillSector(ImDrawList* dl, ImVec2 c, float r, float a0, float a1, ImU32
 void AddCenteredText(ImDrawList* dl, ImVec2 p, ImU32 col, const char* txt) {
     ImVec2 sz = ImGui::CalcTextSize(txt);
     dl->AddText(ImVec2(p.x - sz.x * 0.5f, p.y - sz.y * 0.5f), col, txt);
-}
-
-static void AddCenteredTextEx(ImDrawList* dl, ImFont* font, float font_size,
-                             ImVec2 center, ImU32 col, const char* txt)
-{
-  ImVec2 ts = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, txt);
-  dl->AddText(font, font_size, center - ts * 0.5f, col, txt);
 }
 
 static void AddCenteredChar(ImDrawList* dl, ImFont* font, float font_size,
@@ -338,28 +397,36 @@ bool AoBDialProcedural(
   if (label_font_size <= 0.0f) label_font_size = ImGui::GetFontSize();
 
   ImVec2 pos = ImGui::GetCursorScreenPos();
-  const float gap = radius * st.label_gap;
-  const float lab_h = radius * st.label_h;
+
+  const bool has_label = (label && label[0]);
+  const float gap   = has_label ? radius * st.label_gap : 0.0f;
+  const float lab_h = has_label ? radius * st.label_h   : 0.0f;
 
   ImVec2 size(radius * 2.0f, radius * 2.0f + gap + lab_h);
   ImGui::InvisibleButton(id, size);
 
   const ImVec2 c(pos.x + radius, pos.y + radius);
 
-  // ---- interaction: drag sets AoB
+  // ---- interaction: drag sets AoB (recommended: only when clicking inside the dial circle)
   bool changed = false;
-  if (ImGui::IsItemActive() && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+  if (ImGui::IsItemActive() && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+  {
     ImVec2 m = io.MousePos;
-    ImVec2 d = m - c;
+    ImVec2 d = ImVec2(m.x - c.x, m.y - c.y);
 
-    if (d.x * d.x + d.y * d.y <= radius * radius) {
-      ImVec2 v(m.x - c.x, m.y - c.y);
-      float ang = std::atan2(v.y, v.x);            // 0 right, +90 down
-      float rel = ang - (-std::numbers::pi_v<float> *0.5f);           // 0 at top
+    const float r2 = radius * radius;
+    const float d2 = d.x*d.x + d.y*d.y;
+
+    // Only allow interaction if mouse is within the dial circle (ignores the nameplate area)
+    if (d2 <= r2)
+    {
+      float ang = std::atan2(d.y, d.x); // 0 right, +90 down (screen coords)
+      float rel = ang - (-std::numbers::pi_v<float> * 0.5f); // 0 at top
       while (rel <= -std::numbers::pi_v<float>) rel += 2.0f * std::numbers::pi_v<float>;
-      while (rel > std::numbers::pi_v<float>) rel -= 2.0f * std::numbers::pi_v<float>;   // (-pi, pi]
-      float deg = rel / std::numbers::pi_v<float> *180.0f;            // -180..+180
+      while (rel >  std::numbers::pi_v<float>)  rel -= 2.0f * std::numbers::pi_v<float>;
+      float deg = rel / std::numbers::pi_v<float> * 180.0f;
       deg = std::clamp(deg, -180.0f, 180.0f);
+
       if (deg != *aob_signed_deg) { *aob_signed_deg = deg; changed = true; }
     }
   }
@@ -486,57 +553,320 @@ bool AoBDialProcedural(
   dl->PathArcTo(c, radius * 0.86f, -2.5f, -1.4f, 24);
   dl->PathStroke(IM_COL32(255,255,255,40), 0, radius * 0.03f);
 
-  if (label && label[0])
+  // ---- draw nameplate using helper (bottom)
+  if (has_label)
   {
-    const float gap   = radius * st.label_gap;
-    const float lab_h = radius * st.label_h;
-
     const float plate_pad_x = radius * 0.10f;
-    const float plate_w     = radius * 2.0f - plate_pad_x * 2.0f;
-
-    ImVec2 plate0(pos.x + plate_pad_x, pos.y + radius * 2.0f + gap);
-    ImVec2 plate1(plate0.x + plate_w,  plate0.y + lab_h);
+    ImVec2 p0(pos.x + plate_pad_x, pos.y + radius * 2.0f + gap);
+    ImVec2 p1(pos.x + radius * 2.0f - plate_pad_x, p0.y + lab_h);
 
     const float rounding = radius * st.label_rounding;
     const float border_th = std::max(1.0f, radius * st.label_border_th);
 
-    // Shadow
-    dl->AddRectFilled(plate0 + ImVec2(2,2), plate1 + ImVec2(2,2), IM_COL32(0,0,0,120), rounding);
-
-    // Plate body
-    dl->AddRectFilled(plate0, plate1, st.col_plate_fill, rounding);
-
-    // Border
-    dl->AddRect(plate0, plate1, st.col_plate_border, rounding, 0, border_th);
-
-    // Optional "screw heads" (purely for vibes)
-    if (st.label_screws)
-    {
-      const float sr = radius * st.screw_r;
-      const float inset = sr * 1.6f;
-
-      ImVec2 s0(plate0.x + inset, plate0.y + inset);
-      ImVec2 s1(plate1.x - inset, plate0.y + inset);
-      ImVec2 s2(plate0.x + inset, plate1.y - inset);
-      ImVec2 s3(plate1.x - inset, plate1.y - inset);
-
-      auto Screw = [&](ImVec2 sc)
-      {
-        dl->AddCircleFilled(sc, sr, IM_COL32(180,180,180,200), 24);
-        dl->AddCircle(sc, sr, IM_COL32(0,0,0,160), 24, std::max(1.0f, sr * 0.20f));
-        // little slot
-        dl->AddLine(sc - ImVec2(sr*0.6f, 0), sc + ImVec2(sr*0.6f, 0), IM_COL32(0,0,0,160), std::max(1.0f, sr * 0.25f));
-      };
-
-      Screw(s0); Screw(s1); Screw(s2); Screw(s3);
-    }
-
-    // Text centered on plate
-    ImVec2 tc((plate0.x + plate1.x) * 0.5f, (plate0.y + plate1.y) * 0.5f);
-    AddCenteredTextEx(dl, label_font, label_font_size, tc, st.col_plate_text, label);
+    DrawNamePlate(dl, label_font, label_font_size,
+      p0, p1, label,
+      st.label_screws,
+      st.col_plate_fill,
+      st.col_plate_border,
+      st.col_plate_text,
+      rounding,
+      border_th);
   }
 
   // Layout advance
   ImGui::Dummy(size);
+  return changed;
+}
+
+namespace {
+
+float Wrap360(float deg) {
+  deg = std::fmod(deg, 360.0f);
+  if (deg < 0.0f) deg += 360.0f;
+  return deg;
+}
+
+// 0° at top, 90° right, 180° bottom, 270° left
+float BearingFromMouse(ImVec2 c, ImVec2 m) {
+  float ang = std::atan2(m.y - c.y, m.x - c.x);              // 0 at +X, CCW (screen Y-down)
+  float deg = (ang + std::numbers::pi_v<float> * 0.5f) * (180.0f / std::numbers::pi_v<float>);
+  return Wrap360(deg);
+}
+
+float AngleFromBearing(float deg) {
+  return -std::numbers::pi_v<float> * 0.5f + (deg * (std::numbers::pi_v<float> / 180.0f));
+}
+
+static void DrawBezel(ImDrawList* dl, ImVec2 c, float r,
+                      ImU32 col_outer, ImU32 col_inner, ImU32 col_face)
+{
+  dl->AddCircleFilled(c, r, col_inner, 128);
+  dl->AddCircleFilled(c, r * 0.98f, col_outer, 128);
+  dl->AddCircleFilled(c, r * 0.90f, col_face, 128);
+}
+
+// tick: deg in bearing degrees (0..360)
+void DrawTick(ImDrawList* dl, ImVec2 c, float r_outer, float len, float thick, float deg, ImU32 col)
+{
+  float a = AngleFromBearing(deg);
+  ImVec2 p0(c.x + std::cos(a) * r_outer,        c.y + std::sin(a) * r_outer);
+  ImVec2 p1(c.x + std::cos(a) * (r_outer-len),  c.y + std::sin(a) * (r_outer-len));
+  dl->AddLine(p0, p1, col, thick);
+}
+
+// Top dial: full circle = 10°, minor = 0.1° (100 ticks), major = 1° (10 ticks, labeled 0..9).
+void DrawFine10DegFace(ImDrawList* dl, ImVec2 c, float r,
+                       ImFont* font, float font_size,
+                       ImU32 col_tick, ImU32 col_text
+) {
+  const float r_ticks = r * 0.88f;
+  const float r_text  = r * 0.62f;
+
+  // 100 minor ticks (0.1° each over a 10° revolution)
+  for (int i = 0; i < 100; ++i)
+  {
+    const bool major = (i % 10) == 0; // 1.0°
+    const bool mid   = (i % 5)  == 0; // 0.5°
+
+    const float len   = major ? r * 0.18f : (mid ? r * 0.12f : r * 0.08f);
+    const float thick = major ? r * 0.030f : (mid ? r * 0.022f : r * 0.016f);
+
+    // i ranges 0..99 => angle fraction i/100 around the dial.
+    const float deg = (i / 100.0f) * 360.0f;
+    DrawTick(dl, c, r_ticks, len, thick, deg, col_tick);
+
+    if (major)
+    {
+      // label 0..9 at each 1.0° (every 36° on the dial)
+      const int digit = (i / 10); // 0..9
+      char buf[2] = { (char)('0' + digit), 0 };
+
+      const float a = AngleFromBearing(deg);
+      ImVec2 pt(c.x + std::cos(a) * r_text, c.y + std::sin(a) * r_text);
+      AddCenteredTextEx(dl, font, font_size, pt, col_text, buf);
+    }
+  }
+}
+
+static float PseudoBearingForFine10(float bearing_deg)
+{
+  float b = Wrap360(bearing_deg);
+  float fine = std::fmod(b, 10.0f);        // 0..10
+  if (fine < 0.0f) fine += 10.0f;
+  return fine * 36.0f;                     // 0..360 "pseudo-bearing" for the 10° dial
+}
+
+static void DrawNeedleSimple(ImDrawList* dl, ImVec2 c, float r, float bearing_deg,
+                             ImU32 col_needle, ImU32 col_shadow
+) {
+  float ang = AngleFromBearing(bearing_deg);
+  ImVec2 dir(std::cos(ang), std::sin(ang));
+  ImVec2 nrm(-dir.y, dir.x);
+
+  ImVec2 tip  = c + dir * (r * 0.78f);
+  ImVec2 base = c - dir * (r * 0.10f);
+
+  float w = r * 0.05f;
+
+  // shadow
+  ImVec2 sh(1.5f, 1.5f);
+  dl->AddTriangleFilled(base + nrm*w + sh, base - nrm*w + sh, tip + sh, col_shadow);
+
+  // body
+  dl->AddTriangleFilled(base + nrm*w, base - nrm*w, tip, col_needle);
+
+  // center hub
+  dl->AddCircleFilled(c, r * 0.10f, IM_COL32(20,20,20,255), 48);
+  dl->AddCircle(c, r * 0.10f, IM_COL32(255,255,255,70), 48, std::max(1.0f, r * 0.01f));
+
+  // optional “fork” at the tip (like UBOAT’s red prongs)
+  {
+    ImVec2 f0 = tip - dir * (r * 0.05f);
+    float fw = r * 0.04f;
+    ImVec2 l = f0 + nrm * fw;
+    ImVec2 rr = f0 - nrm * fw;
+    ImVec2 ft = tip + dir * (r * 0.02f);
+    dl->AddTriangleFilled(l, rr, ft, IM_COL32(150, 60, 60, 255));
+  }
+}
+
+// ===== faces =====
+
+// Bottom dial: 0..360, label every 30°, major ticks every 10°, minor every 2°
+static void DrawFineBearingFace(ImDrawList* dl, ImVec2 c, float r,
+                                ImFont* font, float font_size,
+                                ImU32 col_tick, ImU32 col_text
+) {
+  float r_ticks = r * 0.88f;
+  float r_text  = r * 0.62f;
+
+  for (int d = 0; d < 360; d += 2)
+  {
+    bool major10 = (d % 10) == 0;
+    bool label30 = (d % 30) == 0;
+
+    float len   = major10 ? r * 0.16f : r * 0.08f;
+    float thick = major10 ? r * 0.028f : r * 0.018f;
+
+    DrawTick(dl, c, r_ticks, len, thick, (float)d, col_tick);
+
+    if (label30)
+    {
+      char buf[8];
+      ImFormatString(buf, IM_ARRAYSIZE(buf), "%d", d);
+      float a = AngleFromBearing((float)d);
+      ImVec2 pt(c.x + std::cos(a) * r_text, c.y + std::sin(a) * r_text);
+      AddCenteredTextEx(dl, font, font_size, pt, col_text, buf);
+    }
+  }
+}
+
+// Top dial: 0..9 around the circle (coarse sectors). Same needle angle as bearing.
+static void DrawCoarseBearingFace_0to9(ImDrawList* dl, ImVec2 c, float r,
+                                      ImFont* font, float font_size,
+                                      ImU32 col_tick, ImU32 col_text
+) {
+  float r_ticks = r * 0.88f;
+  float r_text  = r * 0.60f;
+
+  // Many fine ticks, but only 10 big sectors.
+  // Make “big” ticks at every 36°, “mid” at 18°, “minor” at 6°.
+  for (int d = 0; d < 360; d += 6)
+  {
+    bool big = (d % 36) == 0;
+    bool mid = (d % 18) == 0;
+
+    float len   = big ? r * 0.18f : (mid ? r * 0.13f : r * 0.08f);
+    float thick = big ? r * 0.030f : (mid ? r * 0.024f : r * 0.016f);
+
+    DrawTick(dl, c, r_ticks, len, thick, (float)d, col_tick);
+  }
+
+  // Digits 0..9 at 36° steps
+  for (int k = 0; k < 10; ++k)
+  {
+    float deg = k * 36.0f;
+    float a = AngleFromBearing(deg);
+    ImVec2 pt(c.x + std::cos(a) * r_text, c.y + std::sin(a) * r_text);
+
+    char buf[2] = { (char)('0' + k), 0 };
+    AddCenteredTextEx(dl, font, font_size, pt, col_text, buf);
+  }
+
+  // little inner dots (pure vibes, matches screenshot a bit)
+  for (int k = 0; k < 10; ++k)
+  {
+    float deg = k * 36.0f + 18.0f;
+    float a = AngleFromBearing(deg);
+    ImVec2 pt(c.x + std::cos(a) * (r * 0.42f), c.y + std::sin(a) * (r * 0.42f));
+    dl->AddCircleFilled(pt, r * 0.015f, IM_COL32(240,240,240,120), 12);
+  }
+}
+
+}
+
+bool BearingDialStacked_UBOAT(
+  const char* id,
+  const char* bottom_label,
+  float r_bot,
+  float* bearing_deg_io,
+  const AoBDialStyle& st,
+  ImFont* font,
+  float font_size)
+{
+  if (!font) font = ImGui::GetFont();
+  if (font_size <= 0.0f) font_size = ImGui::GetFontSize();
+
+  ImDrawList* dl = ImGui::GetWindowDrawList();
+  ImGuiIO& io = ImGui::GetIO();
+
+  const float r_top = r_bot * 0.72f;
+  const float gap_y = r_bot * 0.18f;
+  const float pad = r_bot * 0.12f;
+
+  const float plate_gap = r_bot * 0.10f;
+  const float plate_h = r_bot * 0.38f;
+
+  const float panel_w = r_bot * 2.0f + pad * 2.0f;
+  const float panel_h = pad + (r_top * 2.0f) + gap_y + (r_bot * 2.0f) + plate_gap + plate_h + pad;
+
+  ImVec2 pos = ImGui::GetCursorScreenPos();
+  ImVec2 size(panel_w, panel_h);
+
+  ImGui::PushID(id);
+
+#if 0
+  // Backing panel (black module plate)
+  dl->AddRectFilled(pos, pos + size, IM_COL32(0, 0, 0, 255), r_bot * 0.10f);
+#endif
+
+  // Dial centers
+  ImVec2 c_top(pos.x + panel_w * 0.5f, pos.y + pad + r_top);
+  ImVec2 c_bot(pos.x + panel_w * 0.5f, c_top.y + r_top + gap_y + r_bot);
+
+  // Interaction: drag either dial
+  bool changed = false;
+  float bearing = Wrap360(*bearing_deg_io);
+
+  // Coarse dial hitbox (bottom)
+  ImGui::SetCursorScreenPos(c_bot - ImVec2(r_bot, r_bot));
+  ImGui::InvisibleButton("coarse360", ImVec2(r_bot * 2, r_bot * 2));
+  if (ImGui::IsItemActive() && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+  {
+    bearing = BearingFromMouse(c_bot, io.MousePos);
+    changed = true;
+  }
+
+  // Fine dial hitbox (top): adjusts only within current 10° decade
+  ImGui::SetCursorScreenPos(c_top - ImVec2(r_top, r_top));
+  ImGui::InvisibleButton("fine10", ImVec2(r_top * 2, r_top * 2));
+  if (ImGui::IsItemActive() && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+  {
+    float pseudo = BearingFromMouse(c_top, io.MousePos); // 0..360
+    float fine10 = pseudo / 36.0f;                       // 0..10
+    float decade_base = std::floor(bearing / 10.0f) * 10.0f;
+    bearing = Wrap360(decade_base + fine10);
+    changed = true;
+  }
+
+  // Render
+  const ImU32 col_tick = IM_COL32(230, 220, 200, 255);
+  const ImU32 col_text = IM_COL32(240, 240, 240, 220);
+
+  // Top (fine 10°)
+  DrawBezel(dl, c_top, r_top, st.col_bezel_out, st.col_bezel_in, st.col_face);
+  DrawFine10DegFace(dl, c_top, r_top * 0.92f, font, font_size * 0.90f, col_tick, col_text);
+  DrawNeedleSimple(dl, c_top, r_top, PseudoBearingForFine10(bearing), st.col_needle, st.col_shadow);
+
+  // Bottom (coarse 360°)
+  DrawBezel(dl, c_bot, r_bot, st.col_bezel_out, st.col_bezel_in, st.col_face);
+  DrawFineBearingFace(dl, c_bot, r_bot * 0.92f, font, font_size * 0.90f, col_tick, col_text);
+  DrawNeedleSimple(dl, c_bot, r_bot, bearing, st.col_needle, st.col_shadow);
+
+  // Bottom nameplate
+  if (bottom_label && bottom_label[0])
+  {
+    const float plate_pad_x = r_bot * 0.18f;
+    ImVec2 p0(pos.x + plate_pad_x, pos.y + panel_h - pad - plate_h);
+    ImVec2 p1(pos.x + panel_w - plate_pad_x, p0.y + plate_h);
+
+    float rounding = r_bot * 0.08f;
+    float border_th = std::max(1.0f, r_bot * 0.012f);
+    DrawNamePlate(dl, font, font_size,
+      p0, p1, bottom_label,
+      /*screws=*/true,
+      IM_COL32(10, 10, 10, 255),
+      IM_COL32(240, 240, 240, 170),
+      IM_COL32(240, 240, 240, 220),
+      rounding, border_th);
+  }
+
+  // Layout consume
+  ImGui::SetCursorScreenPos(pos);
+  ImGui::Dummy(size);
+
+  ImGui::PopID();
+
+  if (changed) *bearing_deg_io = Wrap360(bearing);
   return changed;
 }

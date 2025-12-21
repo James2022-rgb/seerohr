@@ -73,3 +73,13 @@ bool AoBDialProcedural(
   ImFont* label_font = nullptr,
   float label_font_size = 0.0f
 );
+
+bool BearingDialStacked_UBOAT(
+  const char* id,
+  const char* bottom_label,      // e.g. "Zielrichtung" / "Schiffspeilung"
+  float r_bot,                   // radius of bottom (coarse) dial
+  float* bearing_deg_io,         // 0..360
+  const AoBDialStyle& st = AoBDialStyle(),
+  ImFont* font = nullptr,
+  float font_size = 0.0f
+);

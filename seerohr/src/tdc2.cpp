@@ -590,17 +590,6 @@ void Tdc::DrawVisualization(
     }
   }
 
-  // Draw Draw projected target course line.
-  DrawLineEx(
-    target_position,
-    target_position + raylib::Vector2(
-      10000.0f * (interm_.target_course - Angle::RightAngle()).Cos(),
-      10000.0f * (interm_.target_course - Angle::RightAngle()).Sin()
-    ),
-    2.5f,
-    DARKGRAY
-  );
-
   // If we have a non-parallax-corrected solution, draw the impact position but fainter.
   if (tri_solution_.has_value()) {
     DrawCircleV(

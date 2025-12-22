@@ -82,31 +82,51 @@ public:
 
     return file_buffer;
 #elif MBASE_PLATFORM_WEB
+    struct FetchContext {
+      std::atomic<bool> done{false};
+      std::atomic<bool> success{false};
+      std::vector<std::byte> data;
+    };
+
+    FetchContext ctx;
+
     emscripten_fetch_attr_t attr;
     emscripten_fetch_attr_init(&attr);
     strcpy(attr.requestMethod, "GET");
     attr.attributes = EMSCRIPTEN_FETCH_LOAD_TO_MEMORY;
+    attr.userData = &ctx;
 
-    emscripten_fetch_t* fetch = emscripten_fetch(&attr, resolved_path.c_str());
+    attr.onsuccess = [](emscripten_fetch_t* fetch) {
+      FetchContext* ctx = static_cast<FetchContext*>(fetch->userData);
+      printf("Fetch succeeded: %s, %llu bytes\n", fetch->url, fetch->numBytes);
+      ctx->data.resize(fetch->numBytes);
+      memcpy(ctx->data.data(), fetch->data, fetch->numBytes);
+      ctx->success = true;
+      ctx->done = true;
+      emscripten_fetch_close(fetch);
+    };
 
-    // ASYNCIFY is assumed.
-    while (fetch->readyState <= 3) {
-      printf("Asynchronously waiting for fetch to complete...\n");
-      emscripten_sleep(50);
+    attr.onerror = [](emscripten_fetch_t* fetch) {
+      FetchContext* ctx = static_cast<FetchContext*>(fetch->userData);
+      printf("Fetch failed: %s, HTTP status %d\n", fetch->url, fetch->status);
+      ctx->success = false;
+      ctx->done = true;
+      emscripten_fetch_close(fetch);
+    };
+
+    printf("Fetching asset: %s\n", resolved_path.c_str());
+    emscripten_fetch(&attr, resolved_path.c_str());
+
+    // Wait for completion using ASYNCIFY
+    while (!ctx.done) {
+      emscripten_sleep(10);
     }
 
-    if (fetch->status != 200) {
-      emscripten_fetch_close(fetch);
+    if (!ctx.success) {
       return std::nullopt;
     }
 
-    std::vector<std::byte> file_buffer;
-    file_buffer.resize(fetch->numBytes);
-    memcpy(file_buffer.data(), fetch->data, fetch->numBytes);
-
-    emscripten_fetch_close(fetch);
-
-    return file_buffer;
+    return std::move(ctx.data);
 #else
     // MBASE_LOG_ERROR("AssetManager::LoadAsset: Not implemented for this platform.");
     return std::nullopt;

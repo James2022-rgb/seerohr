@@ -6,6 +6,8 @@
 # include <emscripten/emscripten.h>
 #endif
 
+#include "mbase/public/platform.h"
+
 #include "imgui.h"
 #include "imgui_impl_raylib.h"
 
@@ -15,12 +17,11 @@
 # include "raygui_widgets.h"
 #endif
 
-#include "mbase/public/platform.h"
-
 #include "asset.h"
 #include "text.h"
 #include "angle.h"
 #include "tdc2.h"
+#include "widgets.h"
 
 #if defined(_MSC_VER)
 # pragma execution_character_set("utf-8")
@@ -31,6 +32,8 @@
 //----------------------------------------------------------------------------------
 constexpr int kScreenWidth = 1920;
 constexpr int kScreenHeight = 1080;
+
+constexpr char const* kGitHubRepoUrl = "https://github.com/James2022-rgb/seerohr";
 
 //----------------------------------------------------------------------------------
 // Module Functions Declaration
@@ -427,6 +430,15 @@ private:
     ImGui::SetNextWindowBgAlpha(0.85f);
 
     if (ImGui::Begin("##overlay", nullptr, window_flags)) {
+      // GitHub button
+      if (ImGui::Button("GitHub")) {
+        OpenUrl(kGitHubRepoUrl);
+      }
+      ImGui::SameLine();
+      ImGui::TextDisabled("(Source Code)");
+
+      ImGui::Separator();
+
       // Language selection
       Language current_lang = GetCurrentLanguage();
       if (ImGui::RadioButton("Deutsch", current_lang == Language::kGerman)) {

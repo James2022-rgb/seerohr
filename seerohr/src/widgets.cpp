@@ -11,6 +11,39 @@
 #include <algorithm>
 #include <numbers>
 
+// public project headers --------------------------------
+#include "mbase/public/platform.h"
+
+// Platform-specific includes for opening URLs
+#if MBASE_PLATFORM_WINDOWS
+# if !defined(WIN32_LEAN_AND_MEAN)
+#  define WIN32_LEAN_AND_MEAN
+# endif
+# if !defined(NOMINMAX)
+#  define NOMINMAX
+# endif
+# include <Windows.h>
+# include <shellapi.h>
+#elif MBASE_PLATFORM_LINUX
+# include <cstdlib>
+#elif MBASE_PLATFORM_WEB
+# include <emscripten/emscripten.h>
+#endif
+
+void OpenUrl(char const* url) {
+#if MBASE_PLATFORM_WINDOWS
+  ShellExecuteA(nullptr, "open", url, nullptr, nullptr, SW_SHOWNORMAL);
+#elif MBASE_PLATFORM_LINUX
+  char command[512];
+  snprintf(command, sizeof(command), "xdg-open %s", url);
+  system(command);
+#elif MBASE_PLATFORM_WEB
+  char script[512];
+  snprintf(script, sizeof(script), "window.open('%s', '_blank');", url);
+  emscripten_run_script(script);
+#endif
+}
+
 bool SliderFloatWithId(
   char const* str_id,
   float* v,

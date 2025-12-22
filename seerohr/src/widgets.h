@@ -3,6 +3,9 @@
 // external headers -------------------------------------
 #include "imgui.h"
 
+/// Open a URL in the default browser.
+void OpenUrl(char const* url);
+
 bool SliderFloatWithId(
   char const* str_id,
   float* v,
